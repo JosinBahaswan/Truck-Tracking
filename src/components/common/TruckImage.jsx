@@ -15,6 +15,7 @@ import React from 'react';
  * - Common card thumbnail size works well at 160x100 (16:10) or 150x100 (3:2)
  * - Use object-cover to crop nicely inside rounded container
  */
+
 export default function TruckImage({
   src,
   width = 160,
