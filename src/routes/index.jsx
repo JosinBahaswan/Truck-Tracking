@@ -19,7 +19,7 @@ import LiveTracking from '../pages/LiveTracking';
 import HistoryTracking from '../pages/HistoryTracking';
 import Analytics from '../pages/Analytics';
 import Reports from '../pages/Reports';
-import Alerts from '../pages/Alerts';
+import Alerts from '../pages/listdata/Alerts';
 import Settings from '../pages/Settings';
 import TrucksFormList from '../pages/listdata/TrucksList';
 import TruckForm from '../pages/form/TruckForm';
@@ -34,6 +34,9 @@ import DriversList from '../pages/listdata/DriversList';
 import DriverForm from '../pages/form/DriverForm';
 import DeviceForm from '../pages/form/DeviceForm';
 import SensorForm from '../pages/form/SensorForm';
+import ChartAreaGradient from '../components/chart/AreaChartGradient';
+import ChartPieLabel from '../components/chart/PieChartLabel';
+// import DonutChartText from '../components/chart/PieChartDonut';
 
 /**
  * Application Routes Configuration
@@ -42,6 +45,31 @@ const AppRoutes = () => {
   return (
     <Routes>
       {/* Public Routes */}
+      <Route
+        path="/chart/area-gradient"
+        element={
+          <ProtectedRoute>
+            <ChartAreaGradient />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/chart/pie-label"
+        element={
+          <ProtectedRoute>
+            <ChartPieLabel />
+          </ProtectedRoute>
+        }
+      />
+      {/* <Route
+        path="/chart/pie-donut-text"
+        element={
+          <ProtectedRoute>
+            <DonutChartText />
+          </ProtectedRoute>
+        }
+      /> */}
+
       <Route
         path="/login"
         element={
