@@ -32,8 +32,7 @@ const navigation = [
     children: [
       // { name: 'Vehicle & IoT Status', href: '/fleet/status' },
       // { name: 'Live Tire View', href: '/monitoring/live-view' },
-      { name: 'Tire Pressure', href: '/monitoring/tires' },
-      { name: 'Temperature', href: '/monitoring/temperature' },
+      { name: 'Sensors (Tire & Temp)', href: '/monitoring/sensors' },
       // { name: 'Fuel Level', href: '/monitoring/fuel' },
     ],
   },

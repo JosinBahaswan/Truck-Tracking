@@ -18,5 +18,8 @@ export * from './management';
 // Backend 1 - Tracking & TPMS
 export * from './tracking';
 
+// Alert Events API (Backend 1)
+export { alertEventsAPI } from './alertEvents.api';
+
 // WebSocket Services
 export { FleetWebSocket } from './websocket/FleetWebSocket';

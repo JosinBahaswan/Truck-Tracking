@@ -157,13 +157,13 @@ export default function TruckForm() {
       errors.push('Valid Year is required');
     }
 
-    // VIN validation: Allow all alphanumeric characters
+    // VIN validation: 5 characters, uppercase letters and numbers only
     if (formData.vin) {
-      const vin = String(formData.vin).trim().toUpperCase();
-      // Allow all alphanumeric characters, length 8-17
-      const vinPattern = /^[A-Z0-9]{8,17}$/i;
+      const vin = String(formData.vin).trim();
+      // Must be exactly 5 characters, uppercase letters and numbers only
+      const vinPattern = /^[A-Z0-9]{5}$/;
       if (!vinPattern.test(vin)) {
-        errors.push('VIN must be alphanumeric (8-17 characters)');
+        errors.push('VIN must be exactly 5 characters (uppercase letters A-Z and numbers 0-9 only)');
       }
     }
 
@@ -504,10 +504,16 @@ export default function TruckForm() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Input
-                      label="VIN"
+                      label="VIN (5 characters)"
                       value={formData.vin}
-                      onChange={(e) => handleInputChange('vin', e.target.value)}
-                      placeholder="Vehicle Identification Number"
+                      onChange={(e) => {
+                        // Auto-transform to uppercase and limit to 5 characters
+                        const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 5);
+                        handleInputChange('vin', value);
+                      }}
+                      placeholder="e.g., TR001 or AB123"
+                      maxLength={5}
+                      style={{ textTransform: 'uppercase' }}
                       icon={
                         <svg
                           className="w-4 h-4 text-gray-400"
@@ -524,6 +530,11 @@ export default function TruckForm() {
                         </svg>
                       }
                     />
+                    <div className="flex items-end pb-2">
+                      <p className="text-xs text-gray-500">
+                        💡 VIN: 5 karakter (huruf besar A-Z dan angka 0-9)
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

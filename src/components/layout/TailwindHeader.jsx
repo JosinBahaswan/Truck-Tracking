@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.js';
+import { useAlertNotifications } from '../../hooks/useAlertNotifications.js';
 import CommandPalette from '../common/CommandPalette.jsx';
 
 function classNames(...classes) {
@@ -19,37 +20,7 @@ function classNames(...classes) {
 const TailwindHeader = ({ setSidebarOpen }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const notifications = [
-    {
-      id: 1,
-      title: 'Vehicle BRN-001 Alert',
-      message: 'Speed limit exceeded',
-      time: '5 min ago',
-      type: 'warning',
-    },
-    {
-      id: 2,
-      title: 'Maintenance Due',
-      message: 'Vehicle BRN-003 requires service',
-      time: '1 hour ago',
-      type: 'info',
-    },
-    {
-      id: 3,
-      title: 'Route Deviation',
-      message: 'Vehicle BRN-002 off planned route',
-      time: '2 hours ago',
-      type: 'warning',
-    },
-    {
-      id: 4,
-      title: 'Fuel Alert',
-      message: 'Vehicle BRN-004 low fuel level',
-      time: '3 hours ago',
-      type: 'error',
-    },
-  ];
-
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useAlertNotifications();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
@@ -123,9 +94,11 @@ const TailwindHeader = ({ setSidebarOpen }) => {
                 <span className="sr-only">View notifications</span>
                 <div className="relative">
                   <BellIcon className="h-6 w-6" aria-hidden="true" />
-                  <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
-                    4
-                  </span>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center animate-pulse">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
                 </div>
               </Menu.Button>
               <Transition
@@ -138,43 +111,87 @@ const TailwindHeader = ({ setSidebarOpen }) => {
                 leaveTo="transform opacity-0 scale-95"
               >
                 <Menu.Items className="absolute right-0 z-1003 mt-2.5 w-80 origin-top-right rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+                  <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Notifications {unreadCount > 0 && `(${unreadCount})`}
+                    </h3>
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAllAsRead();
+                        }}
+                        className="text-xs text-indigo-600 hover:text-indigo-800"
+                      >
+                        Mark all read
+                      </button>
+                    )}
                   </div>
                   <div className="max-h-96 overflow-y-auto">
-                    {notifications.map((notification) => (
-                      <Menu.Item key={notification.id}>
-                        {({ active }) => (
-                          <div
-                            className={classNames(
-                              active ? 'bg-gray-50' : '',
-                              'px-4 py-3 cursor-pointer'
-                            )}
-                          >
-                            <div className="flex items-start">
-                              <div
-                                className={classNames(
-                                  'shrink-0 w-2 h-2 rounded-full mt-2 mr-3',
-                                  notification.type === 'error'
-                                    ? 'bg-red-500'
-                                    : notification.type === 'warning'
-                                      ? 'bg-yellow-500'
-                                      : 'bg-blue-500'
-                                )}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900">
-                                  {notification.title}
-                                </p>
-                                <p className="text-sm text-gray-500">{notification.message}</p>
-                                <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-gray-500">
+                        <BellIcon className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">No new notifications</p>
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <Menu.Item key={notification.id}>
+                          {({ active }) => (
+                            <div
+                              className={classNames(
+                                active ? 'bg-gray-50' : '',
+                                !notification.isRead ? 'bg-blue-50' : '',
+                                'px-4 py-3 cursor-pointer transition-colors'
+                              )}
+                              onClick={() => {
+                                markAsRead(notification.id);
+                                navigate('/alerts');
+                              }}
+                            >
+                              <div className="flex items-start">
+                                <div
+                                  className={classNames(
+                                    'shrink-0 w-2 h-2 rounded-full mt-2 mr-3',
+                                    notification.type === 'error'
+                                      ? 'bg-red-500'
+                                      : notification.type === 'warning'
+                                        ? 'bg-yellow-500'
+                                        : 'bg-blue-500'
+                                  )}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p
+                                    className={classNames(
+                                      'text-sm',
+                                      !notification.isRead
+                                        ? 'font-semibold text-gray-900'
+                                        : 'font-medium text-gray-700'
+                                    )}
+                                  >
+                                    {notification.title}
+                                  </p>
+                                  <p className="text-sm text-gray-500 line-clamp-2">
+                                    {notification.message}
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )}
-                      </Menu.Item>
-                    ))}
+                          )}
+                        </Menu.Item>
+                      ))
+                    )}
                   </div>
+                  {notifications.length > 0 && (
+                    <div className="px-4 py-2 border-t border-gray-100">
+                      <button
+                        onClick={() => navigate('/alerts')}
+                        className="text-sm text-indigo-600 hover:text-indigo-800 font-medium w-full text-center"
+                      >
+                        View all alerts
+                      </button>
+                    </div>
+                  )}
                 </Menu.Items>
               </Transition>
             </Menu>

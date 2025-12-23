@@ -8,10 +8,10 @@ import { TPMS_CONFIG } from './config.js'; // Import konfigurasi TPMS
  */
 
 /**
- * Build TPMS URL (no authentication parameters needed)
+ * Build TPMS URL with authentication parameters
  * @param {string} baseUrl - Base URL
- * @param {object} extraParams - Additional query parameters (optional)
- * @returns {string} Complete URL
+ * @param {object} extraParams - Additional query parameters
+ * @returns {string} Complete URL with auth params
  */
 const buildTpmsUrl = (baseUrl, extraParams = {}) => {
   if (!baseUrl) return ''; // Jika tidak ada baseUrl, kembalikan string kosong
@@ -26,15 +26,14 @@ const buildTpmsUrl = (baseUrl, extraParams = {}) => {
         'http://localhost'; // Fallback ke localhost
       urlObj = new URL(baseUrl, origin); // Buat URL dengan origin sebagai base
     }
-    // Tambahkan extra parameters jika ada (untuk endpoint history dll)
-    if (extraParams && Object.keys(extraParams).length > 0) {
-      const params = new URLSearchParams(urlObj.search); // Ambil query parameters yang sudah ada
-      Object.entries(extraParams).forEach(([k, v]) => {
-        // Loop melalui parameter tambahan
-        if (v != null && v !== '') params.set(k, v); // Tambahkan parameter jika nilainya valid
-      });
-      urlObj.search = params.toString(); // Set query string dari parameter
-    }
+    const params = new URLSearchParams(urlObj.search); // Ambil query parameters yang sudah ada
+    if (TPMS_CONFIG.API_KEY) params.set('apiKey', TPMS_CONFIG.API_KEY); // Tambahkan API key jika ada
+    if (TPMS_CONFIG.SN) params.set('sn', TPMS_CONFIG.SN); // Tambahkan serial number jika ada
+    Object.entries(extraParams || {}).forEach(([k, v]) => {
+      // Loop melalui parameter tambahan
+      if (v != null && v !== '') params.set(k, v); // Tambahkan parameter jika nilainya valid
+    });
+    urlObj.search = params.toString(); // Set query string dari parameter
     return urlObj.toString(); // Kembalikan URL lengkap sebagai string
   } catch {
     return baseUrl; // Jika error, kembalikan baseUrl asli
@@ -51,23 +50,22 @@ const fetchTpms = async (fullUrl) => {
   const t = setTimeout(() => controller.abort(), TPMS_CONFIG.TIMEOUT); // Set timeout untuk membatalkan request otomatis
 
   try {
-    // Build headers dengan token dari localStorage
+    // Build headers dengan API key
     const headers = {
       'Content-Type': 'application/json',
     };
 
-    // Ambil token dari localStorage untuk autentikasi (menggunakan key 'authToken' dari login)
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    // Kirim API key di beberapa format header untuk kompatibilitas
+    // if (TPMS_CONFIG.API_KEY) {
+    //   headers['x-api-key'] = TPMS_CONFIG.API_KEY;
+    // }
 
     // Debug log untuk melihat request details
     console.log('🔍 TPMS Request:', {
       url: fullUrl,
+      apiKey: TPMS_CONFIG.API_KEY ? `${TPMS_CONFIG.API_KEY.substring(0, 10)}...` : 'MISSING',
+      sn: TPMS_CONFIG.SN,
       headers: Object.keys(headers),
-      hasToken: !!token,
-      tokenPreview: token ? `${token.substring(0, 20)}...` : 'NO TOKEN',
     });
 
     const res = await fetch(fullUrl, {
@@ -115,18 +113,18 @@ export const tpmsAPI = {
   getRealtimeWSUrl: () => {
     // Fungsi untuk mendapatkan URL WebSocket realtime
     if (!TPMS_CONFIG.WS_URL) return ''; // Jika tidak ada WS_URL, kembalikan string kosong
-    return buildTpmsUrl(TPMS_CONFIG.WS_URL); // Bangun URL WebSocket tanpa parameter
+    return buildTpmsUrl(TPMS_CONFIG.WS_URL); // Bangun URL WebSocket dengan parameter auth
   },
 
   /**
-   * Get real-time TPMS snapshot (fetch all data without parameters)
-   * @returns {Promise<object>} Real-time TPMS data for all vehicles
+   * Get real-time TPMS snapshot
+   * @returns {Promise<object>} Real-time TPMS data
    */
   getRealtimeSnapshot: async () => {
-    // Fungsi untuk mendapatkan snapshot data TPMS realtime semua kendaraan
+    // Fungsi untuk mendapatkan snapshot data TPMS realtime
     const url = buildTpmsUrl(TPMS_CONFIG.REALTIME_ENDPOINT); // Bangun URL endpoint realtime
     if (!url) return { success: false, data: null, error: 'Missing realtime endpoint' }; // Jika URL kosong, kembalikan error
-    return await fetchTpms(url); // Fetch data dari endpoint realtime (ambil semua data)
+    return await fetchTpms(url); // Fetch data dari endpoint realtime
   },
 
   /**

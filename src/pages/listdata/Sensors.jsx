@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { devicesApi, trucksApi } from 'services/management';
 import TailwindLayout from '../../components/layout/TailwindLayout';
 import { Button } from '../../components/common/Button.jsx';
+import AlertModal from '../../components/common/AlertModal.jsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -101,26 +102,73 @@ function SensorsActionMenu({ sensor, onEdit, onDelete }) {
     </>
   );
 }
-const handleEdit = (id) => {
-  window.location.href = `/sensors/${id}`;
-};
-
-const onDelete = async (id) => {
-  if (!confirm('Delete this sensor? This action cannot be undone.')) return;
-  try {
-    console.log('🗑️ Deleting sensor:', id);
-    await devicesApi.deleteSensor(id);
-    console.log('✅ Sensor deleted successfully');
-    alert('Sensor deleted successfully!');
-    // Reload the sensors list
-    window.location.reload();
-  } catch (error) {
-    console.error('❌ Failed to delete sensor:', error);
-    const errorMsg = error.message || 'Unknown error';
-    alert('Failed to delete sensor: ' + errorMsg);
-  }
-};
 const Sensors = () => {
+  const [alert, setAlert] = useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    showCancel: false,
+  });
+
+  const handleEdit = (id) => {
+    window.location.href = `/sensors/${id}`;
+  };
+
+  const showDeleteConfirmation = (id) => {
+    setAlert({
+      isOpen: true,
+      type: 'warning',
+      title: 'Delete Sensor?',
+      message: 'Are you sure you want to delete this sensor? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      showCancel: true,
+      onConfirm: () => confirmDelete(id),
+      onCancel: () => setAlert({ ...alert, isOpen: false }),
+    });
+  };
+
+  const confirmDelete = async (id) => {
+    setAlert({ ...alert, isOpen: false });
+    
+    try {
+      console.log('🗑️ Deleting sensor:', id);
+      await devicesApi.deleteSensor(id);
+      console.log('✅ Sensor deleted successfully');
+      
+      setAlert({
+        isOpen: true,
+        type: 'success',
+        title: 'Success!',
+        message: 'Sensor deleted successfully!',
+        confirmText: 'OK',
+        showCancel: false,
+        onConfirm: () => {
+          setAlert({ ...alert, isOpen: false });
+          window.location.reload();
+        },
+      });
+    } catch (error) {
+      console.error('❌ Failed to delete sensor:', error);
+      const errorMsg = error.message || 'Unknown error';
+      
+      setAlert({
+        isOpen: true,
+        type: 'error',
+        title: 'Delete Failed',
+        message: 'Failed to delete sensor: ' + errorMsg,
+        confirmText: 'OK',
+        showCancel: false,
+        onConfirm: () => setAlert({ ...alert, isOpen: false }),
+      });
+    }
+  };
+
+  const onDelete = (id) => {
+    showDeleteConfirmation(id);
+  };
   // State
   const [sensors, setSensors] = useState([]);
   const [devices, setDevices] = useState([]);
@@ -1227,6 +1275,19 @@ const Sensors = () => {
           )}
         </div>
       </div>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alert.isOpen}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        confirmText={alert.confirmText}
+        cancelText={alert.cancelText}
+        showCancel={alert.showCancel}
+        onConfirm={alert.onConfirm}
+        onCancel={alert.onCancel}
+      />
     </TailwindLayout>
   );
 };

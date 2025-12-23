@@ -5,27 +5,43 @@ import {
   ExclamationTriangleIcon,
   XCircleIcon,
   ClockIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import TailwindStatCard from './TailwindStatCard';
-import SimpleChartCard from './SimpleChartCard';
+import FleetStatusChart from '../chart/FleetStatusChart';
+import TirePressureChart from '../chart/TirePressureChart';
+import TemperatureChart from '../chart/TemperatureChart';
+import AlertTrendsChart from '../chart/AlertTrendsChart';
+import VehicleActivityChart from '../chart/VehicleActivityChart';
 // Use Backend 2 APIs
 import { dashboardApi, alertsApi, trucksApi } from 'services/management';
 import fleetWebSocket from 'services/management/websocket';
 
 const TailwindFleetOverview = () => {
   const [fleetStats, setFleetStats] = useState([]);
-  const [recentAlerts, setRecentAlerts] = useState([]);
-  const [topVehicles, setTopVehicles] = useState([]);
-  const [fuelData, setFuelData] = useState([]);
-  const [mileageData] = useState([]);
-  const [vehicleStatusData, setVehicleStatusData] = useState([]);
+  const [temperatureData, setTemperatureData] = useState([]);
+  const [tirePressureData, setTirePressureData] = useState([
+    { name: 'Normal', value: 0 },
+    { name: 'Warning', value: 0 },
+    { name: 'Critical', value: 0 },
+    { name: 'No Data', value: 0 },
+  ]);
+  const [alertTrendsData, setAlertTrendsData] = useState([]);
+  const [vehicleStatusData, setVehicleStatusData] = useState([
+    { name: 'Active', value: 45 },
+    { name: 'Maintenance', value: 8 },
+    { name: 'Inactive', value: 12 },
+    { name: 'Idle', value: 15 },
+  ]);
   const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   // Load dashboard data from Backend 2
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
         setLoading(true);
+        setLastRefresh(new Date());
 
         // Stats from Backend 2
         let totalTrucks = 0;
@@ -102,65 +118,204 @@ const TailwindFleetOverview = () => {
           },
         ]);
 
-        setVehicleStatusData([
-          { name: 'Active', value: activeTrucks },
-          { name: 'Maintenance', value: maintenanceTrucks },
-          { name: 'Inactive', value: inactiveTrucks },
+        // Use dummy data if API returns zero values
+        const statusData = [
+          { name: 'Active', value: activeTrucks || 45 },
+          { name: 'Maintenance', value: maintenanceTrucks || 8 },
+          { name: 'Inactive', value: inactiveTrucks || 12 },
           {
             name: 'Idle',
-            value: Math.max(totalTrucks - activeTrucks - maintenanceTrucks - inactiveTrucks, 0),
+            value: totalTrucks > 0 
+              ? Math.max(totalTrucks - activeTrucks - maintenanceTrucks - inactiveTrucks, 0)
+              : 15,
           },
-        ]);
+        ];
+        
+        console.log('📊 Fleet Status Data:', statusData);
+        setVehicleStatusData(statusData);
 
-        // Alerts list from Backend 2
+        // Temperature data from trucks
         try {
-          const alertsRes = await alertsApi.getAll({ limit: 4, resolved: false });
-          console.log('🚨 Alerts from Backend 2:', alertsRes);
+          const tempList = await trucksApi.getAll({ limit: 50 });
+          const trucks = tempList?.data?.trucks || [];
+          
+          // Aggregate temperature data
+          const tempMap = {};
+          trucks.forEach(truck => {
+            if (truck.tpms && Array.isArray(truck.tpms)) {
+              truck.tpms.forEach(tire => {
+                const hour = new Date().getHours();
+                const key = `${hour}:00`;
+                if (!tempMap[key]) {
+                  tempMap[key] = { temps: [], time: key };
+                }
+                if (tire.temperature) {
+                  tempMap[key].temps.push(tire.temperature);
+                }
+              });
+            }
+          });
 
-          const alertsArray = alertsRes?.data?.alerts || alertsRes?.data || [];
-          setRecentAlerts(
-            alertsArray.slice(0, 4).map((alert) => ({
-              id: alert.id || Math.random().toString(36).slice(2),
-              vehicle: alert.plateNumber || alert.truckNumber || alert.truckId || 'Unknown',
-              type: alert.type || 'Alert',
-              message: alert.message || '',
-              time: formatTimeAgo(new Date(alert.occurredAt || alert.createdAt || Date.now())),
-              severity: getSeverityLevel(alert.severity),
-            }))
-          );
-        } catch (error) {
-          console.error('❌ Error fetching alerts:', error);
-          setRecentAlerts([]);
-        }
+          const tempData = Object.values(tempMap).map(item => ({
+            time: item.time,
+            average: item.temps.length > 0 
+              ? Math.round(item.temps.reduce((a, b) => a + b, 0) / item.temps.length)
+              : 0,
+            max: item.temps.length > 0 ? Math.max(...item.temps) : 0,
+          }));
 
-        // Top vehicles from Backend 2
-        try {
-          const listRes = await trucksApi.getAll({ limit: 4, status: 'active' });
-          const trucks = listRes?.data?.trucks || [];
-
-          setTopVehicles(
-            trucks.slice(0, 4).map((t) => ({
-              id: String(t.truckNumber || t.plateNumber || t.id || 'TRUCK'),
-              driver: t.driverName || 'Unassigned',
-              efficiency: Math.floor(Math.random() * 20) + 80, // Mock efficiency
-              mileage: t.totalMileage ? `${t.totalMileage} km` : '-',
-              status: String(t.status || 'idle').toLowerCase(),
-            }))
-          );
-        } catch (error) {
-          console.error('❌ Error fetching top vehicles:', error);
-          setTopVehicles([]);
-        }
-
-        // Fuel data from Backend 2
-        try {
-          const fuelRes = await dashboardApi.getFuelReport();
-          if (fuelRes?.data) {
-            setFuelData(fuelRes.data);
+          if (tempData.length === 0) {
+            // Mock temperature data
+            setTemperatureData([
+              { time: '08:00', average: 65, max: 72 },
+              { time: '10:00', average: 68, max: 75 },
+              { time: '12:00', average: 72, max: 82 },
+              { time: '14:00', average: 74, max: 85 },
+              { time: '16:00', average: 70, max: 78 },
+              { time: '18:00', average: 67, max: 74 },
+            ]);
+          } else {
+            setTemperatureData(tempData);
           }
         } catch (error) {
-          console.error('❌ Error fetching fuel data:', error);
-          setFuelData([]);
+          console.error('❌ Error fetching temperature data:', error);
+          setTemperatureData([
+            { time: '08:00', average: 65, max: 72 },
+            { time: '10:00', average: 68, max: 75 },
+            { time: '12:00', average: 72, max: 82 },
+            { time: '14:00', average: 74, max: 85 },
+            { time: '16:00', average: 70, max: 78 },
+            { time: '18:00', average: 67, max: 74 },
+          ]);
+        }
+
+        // Tire pressure data
+        try {
+          const tireList = await trucksApi.getAll({ limit: 100 });
+          const trucks = tireList?.data?.trucks || [];
+          
+          console.log('🔧 Fetching tire pressure data from trucks:', trucks.length, 'trucks');
+          
+          let normalCount = 0;
+          let warningCount = 0;
+          let criticalCount = 0;
+          let noDataCount = 0;
+          let hasTpmsData = false;
+
+          trucks.forEach(truck => {
+            // Check multiple possible structures: tpms, sensors, tire_sensors
+            const tireData = truck.tpms || truck.sensors || truck.tire_sensors || [];
+            
+            if (Array.isArray(tireData) && tireData.length > 0) {
+              hasTpmsData = true;
+              tireData.forEach(tire => {
+                const pressure = tire.pressure || tire.tirepValue || tire.tire_pressure || 0;
+                
+                if (!pressure || pressure === 0) {
+                  noDataCount++;
+                } else if (pressure < 80) {
+                  criticalCount++;
+                } else if (pressure < 100) {
+                  warningCount++;
+                } else {
+                  normalCount++;
+                }
+              });
+            }
+          });
+
+          // If no TPMS data found in any truck, use fallback
+          if (!hasTpmsData || (normalCount === 0 && warningCount === 0 && criticalCount === 0 && noDataCount === 0)) {
+            console.log('⚠️ No TPMS data found, using fallback data');
+            const fallbackData = [
+              { name: 'Normal', value: 120 },
+              { name: 'Warning', value: 15 },
+              { name: 'Critical', value: 5 },
+              { name: 'No Data', value: 10 },
+            ];
+            setTirePressureData(fallbackData);
+          } else {
+            const tireDataResult = [
+              { name: 'Normal', value: normalCount },
+              { name: 'Warning', value: warningCount },
+              { name: 'Critical', value: criticalCount },
+              { name: 'No Data', value: noDataCount },
+            ];
+            
+            console.log('🔧 Tire Pressure Data prepared:', tireDataResult);
+            setTirePressureData(tireDataResult);
+          }
+        } catch (error) {
+          console.error('❌ Error fetching tire pressure data:', error);
+          const fallbackData = [
+            { name: 'Normal', value: 120 },
+            { name: 'Warning', value: 15 },
+            { name: 'Critical', value: 5 },
+            { name: 'No Data', value: 10 },
+          ];
+          console.log('🔧 Using fallback tire pressure data (error):', fallbackData);
+          setTirePressureData(fallbackData);
+        }
+
+        // Alert trends data (last 7 days)
+        try {
+          const alertsRes = await alertsApi.getAll({ limit: 100 });
+          const alerts = alertsRes?.data?.alerts || [];
+          
+          // Group alerts by day
+          const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+          const alertsByDay = days.map(day => ({
+            day,
+            critical: 0,
+            warning: 0,
+            info: 0,
+          }));
+
+          // Populate with real data if available
+          const now = new Date();
+          alerts.forEach(alert => {
+            const alertDate = new Date(alert.occurredAt || alert.createdAt);
+            const daysAgo = Math.floor((now - alertDate) / (1000 * 60 * 60 * 24));
+            
+            if (daysAgo < 7) {
+              const dayIndex = (now.getDay() - daysAgo + 7) % 7;
+              const severity = alert.severity?.toLowerCase() || 'info';
+              
+              if (severity.includes('critical') || severity.includes('high')) {
+                alertsByDay[dayIndex].critical++;
+              } else if (severity.includes('warning') || severity.includes('medium')) {
+                alertsByDay[dayIndex].warning++;
+              } else {
+                alertsByDay[dayIndex].info++;
+              }
+            }
+          });
+
+          // If no data, use mock data
+          if (alerts.length === 0) {
+            setAlertTrendsData([
+              { day: 'Mon', critical: 2, warning: 5, info: 8 },
+              { day: 'Tue', critical: 1, warning: 4, info: 6 },
+              { day: 'Wed', critical: 3, warning: 6, info: 7 },
+              { day: 'Thu', critical: 0, warning: 3, info: 5 },
+              { day: 'Fri', critical: 2, warning: 5, info: 9 },
+              { day: 'Sat', critical: 1, warning: 2, info: 4 },
+              { day: 'Sun', critical: 0, warning: 1, info: 3 },
+            ]);
+          } else {
+            setAlertTrendsData(alertsByDay);
+          }
+        } catch (error) {
+          console.error('❌ Error fetching alert trends:', error);
+          setAlertTrendsData([
+            { day: 'Mon', critical: 2, warning: 5, info: 8 },
+            { day: 'Tue', critical: 1, warning: 4, info: 6 },
+            { day: 'Wed', critical: 3, warning: 6, info: 7 },
+            { day: 'Thu', critical: 0, warning: 3, info: 5 },
+            { day: 'Fri', critical: 2, warning: 5, info: 9 },
+            { day: 'Sat', critical: 1, warning: 2, info: 4 },
+            { day: 'Sun', critical: 0, warning: 1, info: 3 },
+          ]);
         }
       } catch (error) {
         console.error('❌ Failed to load dashboard data:', error);
@@ -171,8 +326,8 @@ const TailwindFleetOverview = () => {
 
     loadDashboardData();
 
-    // Refresh every 30 seconds
-    const interval = setInterval(loadDashboardData, 30000);
+    // Auto-refresh every 5 minutes (300000ms)
+    const interval = setInterval(loadDashboardData, 300000);
 
     // Connect WebSocket for real-time updates
     fleetWebSocket.connect();
@@ -193,67 +348,63 @@ const TailwindFleetOverview = () => {
     };
   }, []);
 
-  // Helper function to get severity level
-  const getSeverityLevel = (severity) => {
-    if (typeof severity === 'number') {
-      if (severity >= 4) return 'high';
-      if (severity >= 2) return 'medium';
-      return 'low';
-    }
-    return String(severity || 'medium').toLowerCase();
-  };
-
-  const formatTimeAgo = (date) => {
-    const now = new Date();
-    const diff = Math.floor((now - date) / 1000);
-
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-  };
-  const getSeverityColor = (severity) => {
-    switch (severity) {
-      case 'high':
-        return 'bg-red-100 text-red-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'low':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'maintenance':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'idle':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-red-100 text-red-800';
-    }
-  };
-
-  const getSeverityIcon = (severity) => {
-    switch (severity) {
-      case 'high':
-        return <XCircleIcon className="h-5 w-5 text-red-500" />;
-      case 'medium':
-        return <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500" />;
-      case 'low':
-        return <ClockIcon className="h-5 w-5 text-blue-500" />;
-      default:
-        return <ClockIcon className="h-5 w-5 text-gray-500" />;
+  const handleManualRefresh = async () => {
+    setLoading(true);
+    setLastRefresh(new Date());
+    
+    // Trigger a full reload by changing state to force re-render
+    try {
+      const statsRes = await dashboardApi.getStats();
+      console.log('🔄 Manual refresh - Stats:', statsRes);
+      
+      if (statsRes?.data) {
+        const s = statsRes.data;
+        const totalTrucks = Number(s.totalTrucks || 0);
+        const activeTrucks = Number(s.activeTrucks || 0);
+        const maintenanceTrucks = Number(s.maintenanceTrucks || 0);
+        const inactiveTrucks = Number(s.inactiveTrucks || 0);
+        
+        const statusData = [
+          { name: 'Active', value: activeTrucks || 0 },
+          { name: 'Maintenance', value: maintenanceTrucks || 0 },
+          { name: 'Inactive', value: inactiveTrucks || 0 },
+          {
+            name: 'Idle',
+            value: Math.max(totalTrucks - activeTrucks - maintenanceTrucks - inactiveTrucks, 0),
+          },
+        ];
+        
+        console.log('🔄 Manual refresh - Setting vehicle status data:', statusData);
+        setVehicleStatusData(statusData);
+      }
+    } catch (error) {
+      console.error('❌ Manual refresh failed:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-50 to-indigo-50 p-6 overflow-y-auto">
+    <div className="w-full">
       <div className="max-w-7xl mx-auto">
+        {/* Last Refresh Indicator */}
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <ClockIcon className="h-4 w-4" />
+            <span>Last updated: {lastRefresh.toLocaleTimeString('id-ID')}</span>
+            <span className="text-xs text-gray-400">(Auto-refresh every 5 minutes)</span>
+          </div>
+          <button
+            onClick={handleManualRefresh}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Refresh dashboard manually"
+          >
+            <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh Now</span>
+          </button>
+        </div>
+
         {/* Header */}
 
         {/* <div className="mb-8">
@@ -280,180 +431,37 @@ const TailwindFleetOverview = () => {
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 mb-8">
-          <div className="lg:col-span-2">
-            {loading ? (
-              <div className="bg-white p-6 rounded-lg shadow animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
-                <div className="h-64 bg-gray-200 rounded"></div>
-              </div>
-            ) : (
-              <SimpleChartCard
-                title="Fuel Consumption Trend"
-                subtitle="Monthly fuel usage in liters"
-                data={fuelData}
-                type="area"
-                color="#6366f1"
-                height={350}
-              />
-            )}
+          <div className="lg:col-span-2" key="vehicle-activity-chart-container">
+            <VehicleActivityChart loading={loading} />
           </div>
-          <div className="lg:col-span-1">
-            {loading ? (
-              <div className="bg-white p-6 rounded-lg shadow animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
-                <div className="h-64 bg-gray-200 rounded"></div>
-              </div>
-            ) : (
-              <SimpleChartCard
-                title="Vehicle Status"
-                subtitle="Current fleet distribution"
-                data={vehicleStatusData}
-                type="pie"
-                height={350}
-                colors={['#10b981', '#f59e0b', '#6b7280', '#ef4444']}
-              />
-            )}
+          <div className="lg:col-span-1" key="fleet-status-chart-outer">
+            <FleetStatusChart 
+              data={vehicleStatusData} 
+              loading={loading}
+            />
           </div>
+        </div>
+
+        {/* Alert Trends Chart - Full Width */}
+        <div className="mb-8">
+          <AlertTrendsChart data={alertTrendsData} loading={loading} />
         </div>
 
         {/* Secondary Charts */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-8">
-          {loading ? (
-            <div className="bg-white p-6 rounded-lg shadow animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
-              <div className="h-64 bg-gray-200 rounded"></div>
-            </div>
-          ) : (
-            <SimpleChartCard
-              title="Weekly Mileage"
-              subtitle="Distance covered this month"
-              data={mileageData}
-              type="bar"
-              color="#10b981"
-              height={300}
+          <div key="tire-pressure-chart-outer">
+            <TirePressureChart 
+              data={tirePressureData} 
+              loading={loading}
             />
-          )}
-
-          {/* Top Performing Vehicles */}
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                Top Performing Vehicles
-              </h3>
-              <div className="space-y-4">
-                {loading
-                  ? Array.from({ length: 4 }).map((_, index) => (
-                      <div key={index} className="p-4 bg-gray-50 rounded-lg animate-pulse">
-                        <div className="flex items-center space-x-4">
-                          <div className="h-10 w-10 bg-gray-200 rounded-full"></div>
-                          <div className="flex-1">
-                            <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
-                            <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  : topVehicles.map((vehicle) => (
-                      <div
-                        key={vehicle.id}
-                        className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="shrink-0">
-                            <div className="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center">
-                              <span className="text-sm font-medium text-white">
-                                {vehicle.id.split('-')[1]}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2">
-                              <p className="text-sm font-medium text-gray-900">{vehicle.id}</p>
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(vehicle.status)}`}
-                              >
-                                {vehicle.status}
-                              </span>
-                            </div>
-                            <p className="text-sm text-gray-500">Driver: {vehicle.driver}</p>
-                            <div className="mt-2">
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-gray-500">
-                                  Efficiency: {vehicle.efficiency}%
-                                </span>
-                                <span className="text-gray-500">{vehicle.mileage}</span>
-                              </div>
-                              <div className="mt-1 w-full bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-indigo-600 h-2 rounded-full"
-                                  style={{ width: `${vehicle.efficiency}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-              </div>
-            </div>
+          </div>
+          <div key="temperature-chart-outer">
+            <TemperatureChart data={temperatureData} loading={loading} />
           </div>
         </div>
 
-        {/* Recent Alerts */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Recent Alerts</h3>
-            <div className="flow-root">
-              <ul role="list" className="-mb-8">
-                {loading
-                  ? Array.from({ length: 4 }).map((_, index) => (
-                      <li key={index} className="pb-8">
-                        <div className="flex items-start space-x-3 animate-pulse">
-                          <div className="h-10 w-10 bg-gray-200 rounded-full"></div>
-                          <div className="flex-1">
-                            <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
-                            <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-                          </div>
-                        </div>
-                      </li>
-                    ))
-                  : recentAlerts.map((alert, alertIdx) => (
-                      <li key={alert.id}>
-                        <div className="relative pb-8">
-                          {alertIdx !== recentAlerts.length - 1 ? (
-                            <span
-                              className="absolute left-5 top-5 -ml-px h-full w-0.5 bg-gray-200"
-                              aria-hidden="true"
-                            />
-                          ) : null}
-                          <div className="relative flex items-start space-x-3">
-                            <div className="relative">
-                              <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center ring-8 ring-white">
-                                {getSeverityIcon(alert.severity)}
-                              </div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center space-x-2">
-                                <p className="text-sm font-medium text-gray-900">{alert.vehicle}</p>
-                                <span
-                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSeverityColor(alert.severity)}`}
-                                >
-                                  {alert.type}
-                                </span>
-                                <p className="text-sm text-gray-500">{alert.time}</p>
-                              </div>
-                              <p className="mt-1 text-sm text-gray-500">{alert.message}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-              </ul>
-            </div>
-          </div>
-        </div>
       </div>
-    </div>
+      </div>
   );
 };
 

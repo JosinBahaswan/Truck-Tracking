@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import TailwindLayout from '../../components/layout/TailwindLayout.jsx';
 import TruckImage from '../../components/common/TruckImage.jsx';
 import { Button } from '../../components/common/Button.jsx';
+import AlertModal from '../../components/common/AlertModal.jsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -386,13 +387,35 @@ const TrucksFormList = () => {
     setPage(1);
   }, [query, cluster, pageSize]);
 
-  const onDelete = async (id) => {
-    if (
-      !confirm(
-        'Delete this vehicle? This will soft-delete the vehicle (hidden from list but retained in database).'
-      )
-    )
-      return;
+  const [alert, setAlert] = React.useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    showCancel: false,
+  });
+
+  const [deleteId, setDeleteId] = React.useState(null);
+
+  const showDeleteConfirmation = (id) => {
+    setDeleteId(id);
+    setAlert({
+      isOpen: true,
+      type: 'warning',
+      title: 'Delete Vehicle?',
+      message: 'This will soft-delete the vehicle (hidden from list but retained in database). Are you sure?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      showCancel: true,
+      onConfirm: () => confirmDelete(id),
+      onCancel: () => setAlert({ ...alert, isOpen: false }),
+    });
+  };
+
+  const confirmDelete = async (id) => {
+    setAlert({ ...alert, isOpen: false });
+    
     try {
       console.log('🗑️ Soft-deleting vehicle with ID:', id);
 
@@ -421,7 +444,15 @@ const TrucksFormList = () => {
           return updated;
         });
 
-        alert('Vehicle deleted successfully!');
+        setAlert({
+          isOpen: true,
+          type: 'success',
+          title: 'Success!',
+          message: 'Vehicle deleted successfully!',
+          confirmText: 'OK',
+          showCancel: false,
+          onConfirm: () => setAlert({ ...alert, isOpen: false }),
+        });
       } else {
         throw new Error(response?.data?.message || 'Failed to delete vehicle');
       }
@@ -429,8 +460,21 @@ const TrucksFormList = () => {
       console.error('❌ Failed to delete vehicle:', error);
       console.error('❌ Error details:', error.response?.data || error.message);
       const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
-      alert('Failed to delete vehicle: ' + errorMsg);
+      
+      setAlert({
+        isOpen: true,
+        type: 'error',
+        title: 'Delete Failed',
+        message: 'Failed to delete vehicle: ' + errorMsg,
+        confirmText: 'OK',
+        showCancel: false,
+        onConfirm: () => setAlert({ ...alert, isOpen: false }),
+      });
     }
+  };
+
+  const onDelete = (id) => {
+    showDeleteConfirmation(id);
   };
 
   const handleEdit = (id) => {
@@ -1440,6 +1484,19 @@ const TrucksFormList = () => {
           </div>
         </div>
       </div>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alert.isOpen}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        confirmText={alert.confirmText}
+        cancelText={alert.cancelText}
+        showCancel={alert.showCancel}
+        onConfirm={alert.onConfirm}
+        onCancel={alert.onCancel}
+      />
     </TailwindLayout>
   );
 };

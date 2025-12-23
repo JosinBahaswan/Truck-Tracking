@@ -14,10 +14,11 @@ export const TRACKING_CONFIG = {
 };
 
 // TPMS (Tire Pressure Monitoring System) Configuration
-// Note: Endpoint baru tidak memerlukan API_KEY dan SN parameter
 export const TPMS_CONFIG = {
   REALTIME_ENDPOINT: import.meta.env.VITE_API_TPMS_REALTIME_ENDPOINT || '',
   LOCATION_ENDPOINT: import.meta.env.VITE_API_TPMS_LOCATION_ENDPOINT || '',
+  API_KEY: import.meta.env.VITE_TPMS_API_KEY || '',
+  SN: import.meta.env.VITE_TPMS_SN || '',
   WS_URL: import.meta.env.VITE_TPMS_WS_URL || '',
   TIMEOUT: 30000,
 };

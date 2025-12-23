@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import TailwindLayout from '../../components/layout/TailwindLayout.jsx';
 import { driversApi } from 'services/management';
 import { Button } from '../../components/common/Button.jsx';
+import AlertModal from '../../components/common/AlertModal.jsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -264,16 +265,63 @@ export default function DriversList() {
 
   React.useEffect(() => setPage(1), [query, statusFilter, pageSize]);
 
-  const onDelete = async (id) => {
-    if (!window.confirm('Delete this driver?')) return;
+  const [alert, setAlert] = React.useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    showCancel: false,
+  });
+
+  const showDeleteConfirmation = (id) => {
+    setAlert({
+      isOpen: true,
+      type: 'warning',
+      title: 'Delete Driver?',
+      message: 'Are you sure you want to delete this driver? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      showCancel: true,
+      onConfirm: () => confirmDelete(id),
+      onCancel: () => setAlert({ ...alert, isOpen: false }),
+    });
+  };
+
+  const confirmDelete = async (id) => {
+    setAlert({ ...alert, isOpen: false });
+    
     try {
       await driversApi.delete(id);
       console.log('✅ Driver deleted successfully');
       await load();
+      
+      setAlert({
+        isOpen: true,
+        type: 'success',
+        title: 'Success!',
+        message: 'Driver deleted successfully!',
+        confirmText: 'OK',
+        showCancel: false,
+        onConfirm: () => setAlert({ ...alert, isOpen: false }),
+      });
     } catch (error) {
       console.error('❌ Failed to delete driver:', error);
-      alert('Failed to delete driver: ' + error.message);
+      
+      setAlert({
+        isOpen: true,
+        type: 'error',
+        title: 'Delete Failed',
+        message: 'Failed to delete driver: ' + error.message,
+        confirmText: 'OK',
+        showCancel: false,
+        onConfirm: () => setAlert({ ...alert, isOpen: false }),
+      });
     }
+  };
+
+  const onDelete = (id) => {
+    showDeleteConfirmation(id);
   };
 
   const handleEdit = (id) => {
@@ -981,6 +1029,19 @@ export default function DriversList() {
           )}
         </div>
       </div>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alert.isOpen}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        confirmText={alert.confirmText}
+        cancelText={alert.cancelText}
+        showCancel={alert.showCancel}
+        onConfirm={alert.onConfirm}
+        onCancel={alert.onCancel}
+      />
     </TailwindLayout>
   );
 }

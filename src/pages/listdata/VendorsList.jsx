@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import TailwindLayout from '../../components/layout/TailwindLayout.jsx';
 import { vendorsApi } from 'services/management';
 import { Button } from '../../components/common/Button.jsx';
+import AlertModal from '../../components/common/AlertModal.jsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -258,29 +259,75 @@ export default function VendorsList() {
     navigate(`/vendors/${id}`);
   };
 
-  const handleDelete = async (id) => {
-    if (
-      !window.confirm(
-        'Are you sure you want to delete this vendor? Note: Vendors with associated trucks or drivers cannot be deleted.'
-      )
-    )
-      return;
+  const [alert, setAlert] = React.useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    showCancel: false,
+  });
+
+  const showDeleteConfirmation = (id) => {
+    setAlert({
+      isOpen: true,
+      type: 'warning',
+      title: 'Delete Vendor?',
+      message: 'Are you sure you want to delete this vendor? Note: Vendors with associated trucks or drivers cannot be deleted.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      showCancel: true,
+      onConfirm: () => confirmDelete(id),
+      onCancel: () => setAlert({ ...alert, isOpen: false }),
+    });
+  };
+
+  const confirmDelete = async (id) => {
+    setAlert({ ...alert, isOpen: false });
 
     try {
       await vendorsApi.delete(id);
       setVendors(vendors.filter((v) => v.id !== id));
-      alert('Vendor deleted successfully!');
+      
+      setAlert({
+        isOpen: true,
+        type: 'success',
+        title: 'Success!',
+        message: 'Vendor deleted successfully!',
+        confirmText: 'OK',
+        showCancel: false,
+        onConfirm: () => setAlert({ ...alert, isOpen: false }),
+      });
     } catch (err) {
       console.error('Failed to delete vendor:', err);
       const errorMsg = err.message || 'Unknown error';
+      
       if (errorMsg.includes('associated') || errorMsg.includes('Cannot delete')) {
-        alert(
-          'Cannot delete vendor: This vendor has associated trucks or drivers.\n\nPlease reassign or remove them first.'
-        );
+        setAlert({
+          isOpen: true,
+          type: 'error',
+          title: 'Cannot Delete',
+          message: 'Cannot delete vendor: This vendor has associated trucks or drivers. Please reassign or remove them first.',
+          confirmText: 'OK',
+          showCancel: false,
+          onConfirm: () => setAlert({ ...alert, isOpen: false }),
+        });
       } else {
-        alert('Failed to delete vendor: ' + errorMsg);
+        setAlert({
+          isOpen: true,
+          type: 'error',
+          title: 'Delete Failed',
+          message: 'Failed to delete vendor: ' + errorMsg,
+          confirmText: 'OK',
+          showCancel: false,
+          onConfirm: () => setAlert({ ...alert, isOpen: false }),
+        });
       }
     }
+  };
+
+  const handleDelete = (id) => {
+    showDeleteConfirmation(id);
   };
 
   const handleSort = (key) => {
@@ -997,6 +1044,19 @@ export default function VendorsList() {
           )}
         </div>
       </div>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alert.isOpen}
+        type={alert.type}
+        title={alert.title}
+        message={alert.message}
+        confirmText={alert.confirmText}
+        cancelText={alert.cancelText}
+        showCancel={alert.showCancel}
+        onConfirm={alert.onConfirm}
+        onCancel={alert.onCancel}
+      />
     </TailwindLayout>
   );
 }

@@ -1,7 +1,7 @@
 // src/pages/LiveTracking.jsx
 import React from 'react';
 import TailwindLayout from '../components/layout/TailwindLayout';
-import LiveTrackingMapNew from '../components/dashboard/LiveTrackingMapNew';
+import LiveTrackingMapNew from '../pages/tracking/LiveTrackingMapNew';
 
 const LiveTracking = () => {
   return (

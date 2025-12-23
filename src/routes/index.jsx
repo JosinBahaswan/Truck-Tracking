@@ -23,9 +23,8 @@ import Alerts from '../pages/listdata/Alerts';
 import Settings from '../pages/Settings';
 import TrucksFormList from '../pages/listdata/TrucksList';
 import TruckForm from '../pages/form/TruckForm';
-// Monitoring Pages - New Design
-import TirePressureMonitoring from '../pages/monitoring/TirePressureMonitoring';
-import TemperatureMonitoring from '../pages/monitoring/TemperatureMonitoring';
+// Monitoring Pages - New Unified Design
+import SensorMonitoring from '../pages/monitoring/SensorMonitoring';
 import FuelMonitoring from '../pages/monitoring/FuelMonitoring';
 import LiveTireView from '../pages/monitoring/LiveTireView';
 import VendorsList from '../pages/listdata/VendorsList';
@@ -215,23 +214,19 @@ const AppRoutes = () => {
         element={<Navigate to="/monitoring/fuel" replace />} 
       /> */}
 
-      {/* Protected Routes - Monitoring (NEW DESIGN) */}
+      {/* Protected Routes - Monitoring (NEW UNIFIED DESIGN) */}
       <Route
-        path="/monitoring/tires"
+        path="/monitoring/sensors"
         element={
           <ProtectedRoute>
-            <TirePressureMonitoring />
+            <SensorMonitoring />
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/monitoring/temperature"
-        element={
-          <ProtectedRoute>
-            <TemperatureMonitoring />
-          </ProtectedRoute>
-        }
-      />
+      {/* Redirect old routes to new unified monitoring */}
+      <Route path="/monitoring/tires" element={<Navigate to="/monitoring/sensors" replace />} />
+      <Route path="/monitoring/temperature" element={<Navigate to="/monitoring/sensors" replace />} />
+      
       <Route
         path="/monitoring/fuel"
         element={

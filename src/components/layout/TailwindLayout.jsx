@@ -16,7 +16,7 @@ const TailwindLayout = ({ children }) => {
         <TailwindHeader setSidebarOpen={setSidebarOpen} />
 
         {/* Page content */}
-        <main className="flex-1 overflow-hidden">{children}</main>
+        <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
   );

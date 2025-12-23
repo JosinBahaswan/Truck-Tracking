@@ -11,6 +11,21 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     hmr: { overlay: true },
+    proxy: {
+      // Proxy untuk Backend API
+      '/api': {
+        target: 'http://tpms.solonet.net.id', // Ganti dengan URL backend Anda
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      // Proxy untuk WebSocket (jika diperlukan)
+      '/ws': {
+        target: 'wss://tpms.solonet.net.id', // Ganti dengan URL WebSocket Anda
+        ws: true,
+        changeOrigin: true,
+      },
+    },
   },
   resolve: {
     alias: {

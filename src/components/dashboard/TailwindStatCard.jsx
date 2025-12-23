@@ -38,24 +38,24 @@ const TailwindStatCard = ({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-lg bg-white px-4 pb-12 pt-5 shadow sm:px-6 sm:pt-6">
-      <div>
-        <div className={`absolute rounded-md p-3 ${getColorClasses()}`}>
+    <div className="relative overflow-hidden rounded-xl bg-white px-5 pb-20 pt-6 shadow-md hover:shadow-lg transition-shadow border border-gray-100">
+      <div className="mb-4">
+        <div className={`absolute rounded-lg p-3 shadow-lg ${getColorClasses()}`}>
           {Icon ? <Icon className="h-6 w-6" aria-hidden="true" /> : null}
         </div>
-        <p className="ml-16 truncate text-sm font-medium text-gray-500">{title}</p>
-        <p className="ml-16 text-2xl font-semibold text-gray-900">{value}</p>
+        <p className="ml-16 truncate text-sm font-medium text-gray-600">{title}</p>
+        <p className="ml-16 text-3xl font-bold text-gray-900 mt-2">{value}</p>
       </div>
-      <div className="absolute inset-x-0 bottom-0 bg-gray-50 px-4 py-4 sm:px-6">
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-r from-gray-50 to-gray-100/50 px-5 py-4 sm:px-6 border-t border-gray-200">
         <div className="text-sm">
-          {subtitle && <p className="text-gray-600 mb-1">{subtitle}</p>}
-          {change && (
+          {subtitle && <p className="text-gray-700 font-medium mb-1.5">{subtitle}</p>}
+          {change !== undefined && (
             <div className="flex items-center">
-              <span className={`font-medium ${getChangeColor()}`}>
+              <span className={`font-semibold ${getChangeColor()}`}>
                 {getChangePrefix()}
                 {change}
               </span>
-              <span className="ml-2 text-gray-500">vs last month</span>
+              <span className="ml-2 text-gray-500 text-xs">vs last month</span>
             </div>
           )}
         </div>

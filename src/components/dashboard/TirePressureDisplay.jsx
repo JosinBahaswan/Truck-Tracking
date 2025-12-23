@@ -51,7 +51,7 @@ const TirePressureDisplay = ({
     }
 
     // Assign sequential tire numbers across axles and sides
-    let tireNo = 0;
+    let tireNo = 1;
     const layout = axles.map((axle) => {
       const left = Array.from({ length: axle.leftCount }).map(() => ({ tireNo: tireNo++ }));
       const right = Array.from({ length: axle.rightCount }).map(() => ({ tireNo: tireNo++ }));
@@ -214,7 +214,7 @@ const TirePressureDisplay = ({
         const convertedData = propTireData.map((tire) => ({
           tire_no: tire.tireNo,
           tireNo: tire.tireNo,
-          pressure_kpa: tire.tiprValue,
+          pressure_kpa: tire.tirepValue,
           temp_celsius: tire.tempValue,
           changed_at: tire.createdAt,
         }));
@@ -230,23 +230,66 @@ const TirePressureDisplay = ({
   }, [selectedTruckId, propTireData]);
 
   const getTireStatus = (pressure, temperature, exType) => {
-    if (exType) {
+    // Convert kPa to PSI (1 kPa = 0.145 PSI)
+    const psi = pressure * 0.145;
+    
+    // Check for critical temperature (> 90°C)
+    if (temperature > 90) {
+      return {
+        status: 'critical',
+        color: 'bg-red-600',
+        textColor: 'text-red-700',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-red-300',
+        message: 'Temperature Critical'
+      };
+    }
+    
+    // Check for temperature warning (> 80°C)
+    if (temperature > 80) {
       return {
         status: 'warning',
+        color: 'bg-orange-500',
+        textColor: 'text-orange-700',
+        bgColor: 'bg-orange-50',
+        borderColor: 'border-orange-300',
+        message: 'Temperature Warning'
+      };
+    }
+    
+    // Check for low pressure (< 85 PSI)
+    if (psi < 85) {
+      return {
+        status: 'warning',
+        color: 'bg-orange-500',
+        textColor: 'text-orange-700',
+        bgColor: 'bg-orange-50',
+        borderColor: 'border-orange-300',
+        message: 'Pressure Low'
+      };
+    }
+    
+    // Check for high pressure (> 110 PSI)
+    if (psi > 110) {
+      return {
+        status: 'warning',
+        color: 'bg-orange-500',
+        textColor: 'text-orange-700',
+        bgColor: 'bg-orange-50',
+        borderColor: 'border-orange-300',
+        message: 'Pressure High'
+      };
+    }
+    
+    // Check for exType (sensor exception)
+    if (exType) {
+      return {
+        status: 'error',
         color: 'bg-red-500',
         textColor: 'text-red-700',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
-      };
-    }
-
-    if (pressure < 800 || pressure > 900 || temperature > 60) {
-      return {
-        status: 'caution',
-        color: 'bg-yellow-500',
-        textColor: 'text-yellow-700',
-        bgColor: 'bg-yellow-50',
-        borderColor: 'border-yellow-200',
+        message: 'Sensor Error'
       };
     }
 
@@ -256,6 +299,7 @@ const TirePressureDisplay = ({
       textColor: 'text-green-700',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200',
+      message: 'Normal'
     };
   };
 

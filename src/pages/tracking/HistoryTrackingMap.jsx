@@ -4,8 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { PlayIcon, PauseIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import BaseTrackingMap from './BaseTrackingMap';
-import { tpmsAPI } from 'services/tracking'; // BE1 untuk tracking & TPMS only
-import TirePressureDisplay from './TirePressureDisplay';
+import { trackingAPI, historyAPI } from 'services/tracking'; // BE1 Tracking & History API
+import TirePressureDisplay from '../../components/dashboard/TirePressureDisplay';
 
 const HistoryTrackingMap = () => {
   // Test mode disabled; use only backend data
@@ -31,7 +31,7 @@ const HistoryTrackingMap = () => {
     '#98D8C8',
     '#F7DC6F',
     '#BB8FCE',
-    '#85C1E9',
+    '#85C1E9', 
   ]);
 
   // History-specific states
@@ -49,6 +49,9 @@ const HistoryTrackingMap = () => {
   const [isPlaybackPlaying, setIsPlaybackPlaying] = useState(false);
   const [isAutoCenterEnabled, setIsAutoCenterEnabled] = useState(false);
   const [playbackSpeedMs, setPlaybackSpeedMs] = useState(500);
+  const [currentPlaybackTireData, setCurrentPlaybackTireData] = useState(null);
+  const [currentPlaybackTimestamp, setCurrentPlaybackTimestamp] = useState(null);
+  const [isUsingHistoricalData, setIsUsingHistoricalData] = useState(false);
 
   const markersRef = useRef({});
   const routeLinesRef = useRef({});
@@ -115,86 +118,159 @@ const HistoryTrackingMap = () => {
 
   const loadRouteHistory = async (truckId, timeRange = '24h', windowOverride = null) => {
     try {
-      console.log(`📍 Loading route history for ${truckId} (${timeRange})`);
+      console.log(`📍 Loading route history for truck ${truckId} (${timeRange})`);
 
       const { start, end } = windowOverride || getDayWindow(selectedDate);
-      const params = {
-        timeRange: timeRange,
-        limit: timeRange === 'shift' ? 1000 : 200,
-        minSpeed: 0,
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
-      };
-
-      const numericId = (String(truckId).match(/\d{1,4}/) || [])[0];
-      const primaryId = numericId || truckId;
-      // Try TPMS new backend first using SN as identifier
-      let response = await tpmsAPI.getLocationHistory({
-        sn: String(truckId),
-        startTime: params.startTime,
-        endTime: params.endTime,
-      });
-
-      const toRecords = (records) =>
-        (records || [])
-          .map((record) => {
-            const tStr =
-              record.timestamp ||
-              record.recorded_at ||
-              record.created_at ||
-              record.time ||
-              record.gps_time ||
-              null;
-            const t = tStr ? new Date(tStr) : null;
-            const lat = parseFloat(record.latitude ?? record.lat);
-            const lng = parseFloat(record.longitude ?? record.lng ?? record.lon);
-            const speed = parseFloat(record.speed ?? record.speed_kmh ?? record.v) || null;
-            return { lat, lng, t, raw: record, speed };
+      
+      // Try NEW History API first
+      try {
+        console.log('🆕 Attempting History API with sensor snapshots...');
+        console.log('📍 API Config:', {
+          baseUrl: import.meta.env.VITE_TRACKING_API_BASE_URL,
+          truckId,
+          dateRange: { start: start.toISOString(), end: end.toISOString() }
+        });
+        
+        const response = await historyAPI.getTruckHistory(truckId, {
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          limit: 10000
+        });
+        
+        console.log('📥 History API Response:', response);
+        console.log('📊 Response Type:', typeof response, 'Has success?', response?.success, 'Has data?', !!response?.data);
+        
+        if (response.success && response.data && Array.isArray(response.data) && response.data.length > 0) {
+          const historyData = response.data;
+          
+          console.log(`📦 Received ${historyData.length} history points with tire snapshots`);
+          
+          // Convert API response to route points format
+          const enriched = historyData
+            .map((point) => {
+              const lat = parseFloat(point.location?.lat);
+              const lng = parseFloat(point.location?.lng);
+              const t = point.timestamp ? new Date(point.timestamp) : null;
+              
+              // Convert tires array to tireData format matching old structure
+              const tireData = (point.tires || []).map((tire) => ({
+                tireNo: tire.tireNo,
+                position: tire.position,
+                tempValue: tire.temperature,
+                tirepValue: tire.pressure,
+                exType: tire.status,
+                bat: tire.battery,
+                timestamp: tire.timestamp ? new Date(tire.timestamp) : null
+              }));
+              
+              return { 
+                lat, 
+                lng, 
+                t, 
+                raw: point, 
+                speed: null,
+                tireData: tireData
+              };
+            })
+            .filter((r) => !isNaN(r.lat) && !isNaN(r.lng) && r.lat !== 0 && r.lng !== 0)
+            .reverse(); // Reverse to play from oldest to newest
+          
+          const routePoints = enriched.map((r) => [r.lat, r.lng]);
+          const initialTireData = enriched.length > 0 ? enriched[0].tireData : [];
+          
+          console.log(`✅ NEW API: Loaded ${routePoints.length} route points`);
+          console.log(`🔧 Sensors per point: ${initialTireData.length}`);
+          console.log(`📊 Metadata:`, response.meta);
+          
+          setIsUsingHistoricalData(true); // Mark as using accurate historical data
+          
+          return { 
+            points: routePoints, 
+            records: enriched, 
+            tireData: initialTireData,
+            meta: response.meta
+          };
+        } else {
+          console.warn('⚠️ History API returned no data, falling back to old API...');
+          console.warn('Response details:', {
+            success: response?.success,
+            dataLength: response?.data?.length,
+            meta: response?.meta
+          });
+        }
+      } catch (historyError) {
+        console.error('⚠️ History API FAILED - Details:');
+        console.error('  Error:', historyError.message);
+        console.error('  Stack:', historyError.stack);
+        console.error('  Falling back to old API...');
+      }
+      
+      // FALLBACK to OLD API if new API fails or returns no data
+      console.log('🔄 Using old Tracking API (with simulated variations)...');
+      const response = await trackingAPI.getTruckTracking(truckId);
+      
+      if (response.success && response.data?.location_history) {
+        const locationHistory = response.data.location_history;
+        const sensorData = response.data.sensors || [];
+        
+        // Create base tire data from current sensors
+        const baseTireData = sensorData.map((sensor) => ({
+          tireNo: sensor.tireNo,
+          sensorNo: sensor.sensorNo,
+          tempValue: sensor.tempValue,
+          tirepValue: sensor.tirepValue,
+          exType: sensor.exType,
+          bat: sensor.bat,
+        }));
+        
+        // Generate tire data variations for each location point
+        // This simulates historical changes since old API only has latest data
+        const enriched = locationHistory
+          .map((loc, index) => {
+            const lat = parseFloat(loc.latitude);
+            const lng = parseFloat(loc.longitude);
+            const t = loc.recorded_at ? new Date(loc.recorded_at) : null;
+            
+            // Create variation for this point (simulate historical snapshot)
+            // Vary ±5% for temperature and ±3% for pressure
+            const variationFactor = (index / locationHistory.length) * 0.1; // Progressive variation
+            const tireDataVariation = baseTireData.map((sensor) => ({
+              ...sensor,
+              tempValue: sensor.tempValue + (Math.random() - 0.5) * sensor.tempValue * 0.05,
+              tirepValue: sensor.tirepValue + (Math.random() - 0.5) * sensor.tirepValue * 0.03,
+            }));
+            
+            return { 
+              lat, 
+              lng, 
+              t, 
+              raw: loc, 
+              speed: null,
+              tireData: tireDataVariation // Each point has slightly different tire data
+            };
           })
           .filter((r) => !isNaN(r.lat) && !isNaN(r.lng) && r.lat !== 0 && r.lng !== 0)
           .filter((r) => {
             if (!r.t || isNaN(r.t)) return true;
             return r.t >= start && r.t <= end;
-          });
-
-      const toPoints = (recs) => (recs || []).map((r) => [r.lat, r.lng]);
-
-      if (response.success && response.data) {
-        // TPMS format: [{ sn, location: [{ createdAt, lat_lng }] }]
-        let enriched;
-        if (Array.isArray(response.data) && response.data[0]?.location) {
-          const locs = response.data[0].location || [];
-          enriched = (locs || [])
-            .map((loc) => {
-              const parts = String(loc?.lat_lng || '').split(',');
-              const lat = parts[0] != null ? parseFloat(String(parts[0]).trim()) : NaN;
-              const lng = parts[1] != null ? parseFloat(String(parts[1]).trim()) : NaN;
-              const t = loc?.createdAt ? new Date(loc.createdAt) : null;
-              return { lat, lng, t, raw: loc, speed: null };
-            })
-            .filter((r) => !isNaN(r.lat) && !isNaN(r.lng));
-        } else {
-          enriched = toRecords(response.data);
-        }
-        let routePoints = toPoints(enriched);
-
-        if ((!routePoints || routePoints.length === 0) && primaryId !== truckId) {
-          console.log(`🔁 Retrying history with legacy backend using: ${truckId}`);
-          const legacy = await tpmsAPI.getLocationHistory(truckId, params);
-          if (legacy.success && legacy.data) {
-            enriched = toRecords(legacy.data);
-            routePoints = toPoints(enriched);
-          }
-        }
-
-        console.log(`✅ Loaded ${routePoints.length} route points for ${truckId}`);
-        return { points: routePoints, records: enriched };
+          })
+          .reverse(); // Reverse to play from oldest to newest
+        
+        const routePoints = enriched.map((r) => [r.lat, r.lng]);
+        
+        console.log(`✅ OLD API: Loaded ${routePoints.length} route points with ${baseTireData.length} sensors (simulated variations)`);
+        console.log('⚠️ Note: Using simulated data variations. For accurate historical data, use History API.');
+        
+        setIsUsingHistoricalData(false); // Mark as using simulated data
+        
+        return { points: routePoints, records: enriched, tireData: baseTireData };
       }
 
-      return { points: [], records: [] };
+      console.warn(`⚠️ No location history found for truck ${truckId}`);
+      return { points: [], records: [], tireData: [] };
     } catch (error) {
-      console.error(`❌ Failed to load route history for ${truckId}:`, error);
-      return { points: [], records: [] };
+      console.error(`❌ Failed to load route history for truck ${truckId}:`, error);
+      return { points: [], records: [], tireData: [] };
     }
   };
 
@@ -236,61 +312,66 @@ const HistoryTrackingMap = () => {
       try {
         setLoading(true);
 
-        // Test route disabled: use only backend data
-
-        // Load basic vehicle data from TPMS (fallback to legacy if needed)
-        const tpms = await tpmsAPI.getRealtimeSnapshot();
+        // Load basic vehicle data from Tracking API
+        const response = await trackingAPI.getLiveTracking();
         let vehicleData = [];
-        if (tpms && tpms.success && Array.isArray(tpms.data)) {
-          vehicleData = tpms.data
-            .map((d, index) => {
-              const id = d?.sn ? String(d.sn) : null;
-
-              // Get location from either location array or direct lat_lng field
-              let lat = NaN;
-              let lng = NaN;
-              let lastUpdate = new Date();
-
-              if (d?.location && Array.isArray(d.location) && d.location.length > 0) {
-                // Use the most recent location from the array
-                const latestLocation = d.location[0];
-                const latlngStr = latestLocation?.lat_lng || '';
-                const parts = String(latlngStr).split(',');
-                lat = parts[0] != null ? parseFloat(String(parts[0]).trim()) : NaN;
-                lng = parts[1] != null ? parseFloat(String(parts[1]).trim()) : NaN;
-                lastUpdate = latestLocation?.createdAt
-                  ? new Date(latestLocation.createdAt)
-                  : new Date();
-              } else if (d?.location?.lat_lng) {
-                const latlngStr = d.location.lat_lng || '';
-                const parts = String(latlngStr).split(',');
-                lat = parts[0] != null ? parseFloat(String(parts[0]).trim()) : NaN;
-                lng = parts[1] != null ? parseFloat(String(parts[1]).trim()) : NaN;
-                lastUpdate = d.location?.createdAt ? new Date(d.location.createdAt) : new Date();
+        
+        if (response && response.success && Array.isArray(response.data?.trucks)) {
+          const trucks = response.data.trucks;
+          
+          vehicleData = trucks
+            .map((truck) => {
+              const id = truck.truck_id ? String(truck.truck_id) : null;
+              const location = truck.location;
+              
+              if (!location || !location.latitude || !location.longitude) {
+                console.warn(`⚠️ No location data for truck ${id}`);
+                return null;
               }
-
+              
+              const lat = parseFloat(location.latitude);
+              const lng = parseFloat(location.longitude);
+              
               if (!id || !isFinite(lat) || !isFinite(lng)) return null;
+              
+              // Calculate average battery from device
+              const battery = truck.device?.battery?.average || 0;
+              
+              // Map sensors to tireData format
+              const tireData = (truck.sensors || []).map((sensor) => ({
+                tireNo: sensor.tireNo,
+                sensorNo: sensor.sensorNo,
+                tempValue: sensor.tempValue,
+                tirepValue: sensor.tirepValue,
+                exType: sensor.exType,
+                bat: sensor.bat,
+              }));
+              
               return {
                 id,
-                truckNumber: index + 1, // Use array index + 1 as truck number
-                driver: 'Unknown Driver',
+                truckNumber: truck.truck_id,
+                truckName: truck.truck_name,
+                plateNumber: truck.plate_number,
+                model: truck.model,
+                driver: truck.driver?.name || 'Unknown Driver',
                 position: [lat, lng],
-                status: 'active',
+                status: truck.status || 'active',
                 speed: 0,
                 heading: 0,
                 fuel: 0,
-                battery: 0,
-                signal: 'unknown',
-                lastUpdate: lastUpdate,
+                battery: battery,
+                signal: truck.device?.status === 'active' ? 'good' : 'unknown',
+                lastUpdate: location.last_update ? new Date(location.last_update) : new Date(),
                 route: 'Mining Area',
                 load: 'Unknown',
-                tireData: d?.tire || [], // Include tire pressure data
+                tireData: tireData,
+                device: truck.device,
+                sensorSummary: truck.sensor_summary,
               };
             })
             .filter(Boolean);
         } else {
-          // Jika TPMS gagal, tidak ada fallback
-          console.error('❌ TPMS failed, no vehicles loaded');
+          console.error('❌ Tracking API failed, no vehicles loaded');
         }
 
         setVehicles(vehicleData);
@@ -537,7 +618,7 @@ const HistoryTrackingMap = () => {
     }
   }, [map, vehicles, routeVisible, routeColors, vehicleRoutes, clusterSelections, selectedVehicle]);
 
-  // Update playback marker position
+  // Update playback marker position and tire data
   useEffect(() => {
     if (!map || !selectedVehicle) return;
 
@@ -545,6 +626,26 @@ const HistoryTrackingMap = () => {
     if (routeHistory.length === 0 || playbackIndex >= routeHistory.length) return;
 
     const currentPosition = routeHistory[playbackIndex];
+    
+    // Update tire data from current history point
+    const currentRecord = routeMetaByVehicle[selectedVehicle.id]?.[playbackIndex];
+    if (currentRecord) {
+      // Update timestamp
+      setCurrentPlaybackTimestamp(currentRecord.t);
+      
+      // Update tire data
+      if (currentRecord.tireData && currentRecord.tireData.length > 0) {
+        console.log(`🔄 Playback ${playbackIndex + 1}/${routeHistory.length} | Time: ${currentRecord.t?.toLocaleTimeString('id-ID') || 'N/A'}`);
+        console.log('📊 Sensors:', currentRecord.tireData.length, '| Sample:', {
+          tire1_temp: currentRecord.tireData[0]?.tempValue + '°C',
+          tire1_pressure: currentRecord.tireData[0]?.tirepValue + ' kPa'
+        });
+        setCurrentPlaybackTireData(currentRecord.tireData);
+      } else {
+        console.warn(`⚠️ No tire data at index ${playbackIndex}`);
+        setCurrentPlaybackTireData(null);
+      }
+    }
 
     // Create or update playback marker
     if (!playbackMarkerRef.current) {
@@ -682,6 +783,11 @@ const HistoryTrackingMap = () => {
       map.removeLayer(playbackMarkerRef.current);
       playbackMarkerRef.current = null;
     }
+    
+    // Reset playback tire data when vehicle is deselected
+    if (!selectedVehicle) {
+      setCurrentPlaybackTireData(null);
+    }
 
     // Recreate any missing static markers so all trucks remain selectable
     try {
@@ -795,6 +901,34 @@ const HistoryTrackingMap = () => {
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden space-y-4 pr-1">
+        {/* API Status Indicator */}
+        {selectedVehicle && (
+          <div className={`px-3 py-2 rounded-lg border ${
+            isUsingHistoricalData 
+              ? 'bg-green-50 border-green-300' 
+              : 'bg-orange-50 border-orange-300'
+          }`}>
+            <div className="flex items-start gap-2">
+              <span className="text-base">{isUsingHistoricalData ? '✓' : '⚠️'}</span>
+              <div className="flex-1 min-w-0">
+                <div className={`text-xs font-semibold ${
+                  isUsingHistoricalData ? 'text-green-700' : 'text-orange-700'
+                }`}>
+                  {isUsingHistoricalData ? 'Historical Data Active' : 'Simulated Data Mode'}
+                </div>
+                <div className={`text-[10px] mt-0.5 ${
+                  isUsingHistoricalData ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  {isUsingHistoricalData 
+                    ? 'Akurat dari sensor history database' 
+                    : 'Data variasi simulasi (History API tidak tersedia)'
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Date & Shift Section */}
         <div className="min-w-0">
           <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
@@ -890,118 +1024,122 @@ const HistoryTrackingMap = () => {
 
         <div className="border-t border-gray-200"></div>
 
-        {/* Journey Summary Section */}
-        <div className="min-w-0">
-          <div className="flex items-center justify-between mb-2">
-            <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-              Ringkasan
-            </h5>
-            {selectedVehicle && (
-              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded shrink-0">
-                T{selectedVehicle.truckNumber || extractTruckNumber(selectedVehicle.id) || '?'}
-              </span>
-            )}
-          </div>
-
-          {selectedVehicle && journeyStats ? (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between py-1.5 border-b border-gray-200">
-                <span className="text-xs text-gray-600">Total Poin</span>
-                <span className="text-xs font-semibold text-gray-900">{journeyStats.points}</span>
+        {/* Current Point Alerts Section - Only show if alert exists at current point */}
+        {selectedVehicle && currentPlaybackTireData && (() => {
+          const alerts = [];
+          currentPlaybackTireData.forEach(tire => {
+            const temp = tire.tempValue;
+            const pressure = tire.tirepValue;
+            
+            // Check temperature alerts
+            if (temp > 90) {
+              alerts.push({ tire: tire.tireNo, type: 'critical', message: 'Temperature Critical', value: `${temp.toFixed(1)}°C` });
+            } else if (temp > 80) {
+              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Temperature Warning', value: `${temp.toFixed(1)}°C` });
+            }
+            
+            // Check pressure alerts (convert kPa to PSI: 1 kPa = 0.145 PSI)
+            const psi = pressure * 0.145;
+            if (psi < 85) {
+              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Pressure Low', value: `${psi.toFixed(1)} PSI` });
+            } else if (psi > 110) {
+              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Pressure High', value: `${psi.toFixed(1)} PSI` });
+            }
+          });
+          
+          return alerts.length > 0 ? (
+            <div className="min-w-0">
+              <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                🚨 Alerts di Titik Ini
+              </h5>
+              <div className="space-y-1.5">
+                {alerts.map((alert, idx) => (
+                  <div 
+                    key={idx}
+                    className={`px-2 py-1.5 rounded-md border text-xs ${
+                      alert.type === 'critical' 
+                        ? 'bg-red-50 border-red-300 text-red-700' 
+                        : 'bg-orange-50 border-orange-300 text-orange-700'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="font-semibold">Ban {alert.tire}: {alert.message}</div>
+                        <div className="text-[10px] mt-0.5 opacity-80">{alert.value}</div>
+                      </div>
+                      <span className="text-base shrink-0">{alert.type === 'critical' ? '🔴' : '⚠️'}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center justify-between py-1.5 border-b border-gray-200">
-                <span className="text-xs text-gray-600">Jarak Tempuh</span>
-                <span className="text-xs font-semibold text-gray-900">
-                  {journeyStats.distanceKm.toFixed(2)} km
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-1.5 border-b border-gray-200">
-                <span className="text-xs text-gray-600">Durasi</span>
-                <span className="text-xs font-semibold text-gray-900">
-                  {journeyStats.durationHrs ? journeyStats.durationHrs.toFixed(2) + ' jam' : '-'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-1.5 border-b border-gray-200">
-                <span className="text-xs text-gray-600 truncate">Kec. Rata-rata</span>
-                <span className="text-xs font-semibold text-gray-900 shrink-0">
-                  {journeyStats.avgSpeed ? journeyStats.avgSpeed.toFixed(1) + ' km/j' : '-'}
-                </span>
-              </div>
-              <div className="pt-1.5">
-                <div className="text-xs text-gray-600 mb-1">Waktu Perjalanan</div>
-                <div className="bg-gray-50 rounded px-2 py-1.5 text-xs text-gray-700 text-center wrap-break-word">
-                  {journeyStats.startT
-                    ? new Date(journeyStats.startT).toLocaleTimeString('id-ID', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
-                    : '--:--'}
-                  {' → '}
-                  {journeyStats.endT
-                    ? new Date(journeyStats.endT).toLocaleTimeString('id-ID', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
-                    : '--:--'}
-                </div>
-              </div>
+              <div className="border-t border-gray-200 mt-2"></div>
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-4 text-center bg-gray-50 rounded-md">
-              <svg
-                className="w-8 h-8 text-gray-300 mb-1.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
-              <p className="text-xs text-gray-500 leading-tight">
-                Pilih kendaraan di peta untuk
-                <br />
-                melihat ringkasan perjalanan
-              </p>
-            </div>
-          )}
-        </div>
-        <div className="border-t border-gray-200"></div>
-
-        {/* Alerts Section */}
-        <div className="min-w-0">
-          <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-            Alerts
-          </h5>
-          <div className="bg-gray-50 rounded-md px-3 py-2.5 text-center">
-            {alertsLoading ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-xs text-gray-600">Memuat...</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="text-xl font-bold text-gray-900">{alertCount ?? '—'}</span>
-                <span className="text-xs text-gray-600">kejadian</span>
-              </div>
-            )}
-          </div>
-        </div>
+          ) : null;
+        })()}
 
         <div className="border-t border-gray-200"></div>
 
         {/* Tire Pressure Section */}
         <div className="min-w-0 pb-2">
-          <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-            Tekanan Ban
+          <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center justify-between">
+            <span>Tekanan Ban</span>
+            {currentPlaybackTireData && (
+              <span className={`text-[10px] font-normal ${isUsingHistoricalData ? 'text-green-600' : 'text-orange-600'}`}>
+                {isUsingHistoricalData ? '✓ Historical' : '~ Simulated'}
+              </span>
+            )}
           </h5>
+          
+          {/* Data Source Warning */}
+          {currentPlaybackTireData && !isUsingHistoricalData && (
+            <div className="mb-2 px-2 py-1 bg-orange-50 border border-orange-200 rounded text-[10px] text-orange-700">
+              <div className="flex items-start gap-1">
+                <span>⚠️</span>
+                <span>Data simulasi. Untuk data akurat, pastikan History API aktif.</span>
+              </div>
+            </div>
+          )}
+          
+          {/* Timestamp Info */}
+          {currentPlaybackTimestamp && (
+            <div className={`mb-2 px-2 py-1.5 rounded text-[10px] ${
+              isUsingHistoricalData 
+                ? 'bg-green-50 border border-green-200 text-green-700' 
+                : 'bg-blue-50 border border-blue-200 text-blue-700'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="font-medium">📅 Recorded:</span>
+                <span className="font-mono">
+                  {currentPlaybackTimestamp.toLocaleString('id-ID', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  })}
+                </span>
+              </div>
+              <div className="flex items-center justify-between mt-0.5">
+                <span className="font-medium">📍 Position:</span>
+                <span className="font-mono">
+                  {playbackIndex + 1} / {vehicleRoutes[selectedVehicle?.id]?.length || 0}
+                </span>
+              </div>
+              {currentPlaybackTireData && currentPlaybackTireData.length > 0 && (
+                <div className="flex items-center justify-between mt-0.5">
+                  <span className="font-medium">🔧 Sensors:</span>
+                  <span className="font-mono">
+                    {currentPlaybackTireData.length} active
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="w-full overflow-hidden">
             <TirePressureDisplay
               selectedTruckId={resolveTruckUUID(selectedVehicle?.id) || selectedVehicle?.id}
-              tireData={selectedVehicle?.tireData}
+              tireData={currentPlaybackTireData || selectedVehicle?.tireData}
               showHeader={false}
               className="w-full"
             />
@@ -1161,6 +1299,8 @@ const HistoryTrackingMap = () => {
   const stopPlayback = () => {
     pausePlayback();
     setPlaybackIndex(0);
+    setCurrentPlaybackTireData(null); // Reset tire data to original
+    setCurrentPlaybackTimestamp(null); // Reset timestamp
     const pts = selectedVehicle ? vehicleRoutes[selectedVehicle.id] || [] : [];
     if (pts.length > 0) createOrUpdatePlaybackMarker(pts[0]);
   };
