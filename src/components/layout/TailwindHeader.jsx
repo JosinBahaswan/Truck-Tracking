@@ -20,7 +20,7 @@ function classNames(...classes) {
 const TailwindHeader = ({ setSidebarOpen }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useAlertNotifications();
+  const { notifications, unreadCount, markAsRead } = useAlertNotifications();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
@@ -95,8 +95,8 @@ const TailwindHeader = ({ setSidebarOpen }) => {
                 <div className="relative">
                   <BellIcon className="h-6 w-6" aria-hidden="true" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center animate-pulse">
-                      {unreadCount > 9 ? '9+' : unreadCount}
+                    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs text-white flex items-center justify-center animate-pulse font-semibold">
+                      {unreadCount}
                     </span>
                   )}
                 </div>
@@ -111,21 +111,10 @@ const TailwindHeader = ({ setSidebarOpen }) => {
                 leaveTo="transform opacity-0 scale-95"
               >
                 <Menu.Items className="absolute right-0 z-1003 mt-2.5 w-80 origin-top-right rounded-md bg-white py-2 shadow-lg ring-1 ring-gray-900/5 focus:outline-none">
-                  <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+                  <div className="px-4 py-2 border-b border-gray-100">
                     <h3 className="text-sm font-semibold text-gray-900">
-                      Notifications {unreadCount > 0 && `(${unreadCount})`}
+                      Notifications {notifications.length > 0 && `(${notifications.length})`}
                     </h3>
-                    {notifications.length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          markAllAsRead();
-                        }}
-                        className="text-xs text-indigo-600 hover:text-indigo-800"
-                      >
-                        Mark all read
-                      </button>
-                    )}
                   </div>
                   <div className="max-h-96 overflow-y-auto">
                     {notifications.length === 0 ? (

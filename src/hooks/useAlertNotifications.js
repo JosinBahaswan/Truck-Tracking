@@ -6,8 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { alertEventsAPI } from '../services/alertEvents.api';
 
-const POLL_INTERVAL = 30000; // 30 seconds
-const MAX_NOTIFICATIONS = 10; // Maximum number of notifications to keep
+const POLL_INTERVAL = 1000; // 30 seconds
 
 export const useAlertNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -27,11 +26,28 @@ export const useAlertNotifications = () => {
       console.log('📥 Alert response:', response);
       
       if (response.success && response.data) {
-        const activeAlerts = Array.isArray(response.data) ? response.data : [];
-        console.log('✅ Active alerts found:', activeAlerts.length);
-        const newNotifications = [];
+        const allActiveAlerts = Array.isArray(response.data) ? response.data : [];
+        console.log('✅ Active alerts found:', allActiveAlerts.length);
+        
+        // Sync directly with all active alerts (no time filter, no limit)
+        // Sort by newest first
+        const activeAlerts = allActiveAlerts
+          .sort((a, b) => {
+            const timeA = new Date(a.created_at || a.occurredAt);
+            const timeB = new Date(b.created_at || b.occurredAt);
+            return timeB - timeA;
+          });
+        
+        console.log('📊 Active alerts for notifications:', activeAlerts.length);
+        
+        // Create new alerts map for current active alerts
+        const newAlertsMap = new Map();
+        activeAlerts.forEach((alert) => {
+          newAlertsMap.set(alert.id, alert);
+        });
 
-        // Check for new alerts
+        // Find NEW alerts (not in previous map)
+        const newNotifications = [];
         activeAlerts.forEach((alert) => {
           if (!previousAlertsRef.current.has(alert.id)) {
             console.log('🆕 New alert detected:', alert.id, alert);
@@ -51,36 +67,45 @@ export const useAlertNotifications = () => {
           }
         });
 
-        // Update previous alerts map
-        const newAlertsMap = new Map();
-        activeAlerts.forEach((alert) => {
-          newAlertsMap.set(alert.id, alert);
+        // Find RESOLVED alerts (in previous map but not in current active alerts)
+        const resolvedAlertIds = new Set();
+        previousAlertsRef.current.forEach((_, alertId) => {
+          if (!newAlertsMap.has(alertId)) {
+            resolvedAlertIds.add(alertId);
+            console.log('✅ Alert resolved:', alertId);
+          }
         });
+
+        // Update previous alerts map
         previousAlertsRef.current = newAlertsMap;
 
-        // Add new notifications to state (keeping max limit)
-        if (newNotifications.length > 0) {
-          console.log('🔔 Adding', newNotifications.length, 'new notifications');
-          setNotifications((prev) => {
-            const updated = [...newNotifications, ...prev].slice(0, MAX_NOTIFICATIONS);
-            const unread = updated.filter((n) => !n.isRead).length;
-            setUnreadCount(unread);
-            console.log('📊 Unread count:', unread);
-            return updated;
-          });
+        // Sync notifications with current active alerts (always replace with latest)
+        const currentNotifications = activeAlerts.map((alert) => ({
+          id: alert.id,
+          title: getAlertTitle(alert),
+          message: alert.message || alert.description || 'Alert triggered',
+          time: formatTimeAgo(alert.created_at || alert.occurredAt),
+          type: getSeverityType(alert.severity),
+          severity: alert.severity,
+          truckId: alert.truck_id,
+          truckName: alert.truck?.name || alert.truck?.plate_number || `Truck #${alert.truck_id}`,
+          isRead: false,
+          timestamp: new Date(alert.created_at || alert.occurredAt || Date.now()),
+        }));
 
-          // Show browser notification if supported
-          if ('Notification' in window && Notification.permission === 'granted') {
-            newNotifications.forEach((notif) => {
-              new Notification(notif.title, {
-                body: notif.message,
-                icon: '/logo.png',
-                tag: `alert-${notif.id}`,
-              });
+        setNotifications(currentNotifications);
+        setUnreadCount(currentNotifications.length);
+        console.log('📊 Notifications synced:', currentNotifications.length);
+
+        // Show browser notification for new alerts only
+        if (newNotifications.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
+          newNotifications.forEach((notif) => {
+            new Notification(notif.title, {
+              body: notif.message,
+              icon: '/logo.png',
+              tag: `alert-${notif.id}`,
             });
-          }
-        } else {
-          console.log('ℹ️ No new alerts detected');
+          });
         }
       } else {
         console.warn('⚠️ Invalid alert response format:', response);
@@ -120,15 +145,15 @@ export const useAlertNotifications = () => {
   }, []);
 
   /**
-   * Mark notification as read
+   * Mark notification as read (auto-remove)
    */
   const markAsRead = useCallback((notificationId) => {
     setNotifications((prev) => {
-      const updated = prev.map((n) =>
-        n.id === notificationId ? { ...n, isRead: true } : n
-      );
+      // Remove the notification when read instead of marking it
+      const updated = prev.filter((n) => n.id !== notificationId);
       const unread = updated.filter((n) => !n.isRead).length;
       setUnreadCount(unread);
+      console.log('🗑️ Notification removed on read:', notificationId);
       return updated;
     });
   }, []);
@@ -183,8 +208,30 @@ export const useAlertNotifications = () => {
  * Helper: Get alert title based on alert type
  */
 const getAlertTitle = (alert) => {
-  const truckName = alert.truck?.name || `Truck #${alert.truck_id}`;
-  const alertType = alert.alert?.name || 'Alert';
+  const truckName = alert.truck?.name || alert.truck?.plate_number || `Truck #${alert.truck_id}`;
+  
+  // Get alert type from alert object or alert_code
+  let alertType = alert.alert?.name || alert.alert_name || 'Alert';
+  
+  // If we have alert_code, use more descriptive name
+  if (alert.alert_code) {
+    switch (alert.alert_code) {
+      case 'TIRE_TEMP_CRITICAL':
+        alertType = 'Critical Temperature';
+        break;
+      case 'TIRE_TEMP_HIGH':
+        alertType = 'High Temperature';
+        break;
+      case 'TIRE_PRESSURE_CRITICAL':
+        alertType = 'Critical Low Pressure';
+        break;
+      case 'TIRE_PRESSURE_HIGH':
+        alertType = 'Critical High Pressure';
+        break;
+      default:
+        alertType = alert.alert_code.replace(/_/g, ' ');
+    }
+  }
 
   return `${truckName} - ${alertType}`;
 };

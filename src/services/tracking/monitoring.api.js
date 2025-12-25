@@ -147,15 +147,29 @@ export const getTirePressureMonitoring = async () => {
 
       // Extract tire sensors (all sensors have tire pressure data)
       truck.sensors.forEach((sensor) => {
+        // ⚠️ Backend sends pressure in PSI (not kPa despite field name)
+        const pressure = sensor.tirepValue || 0;
+        const temperature = sensor.tempValue || 0;
+        
         // Map exType to readable status
         let status = 'Normal';
         const exType = sensor.exType || '';
         
-        if (exType.includes('4')) status = 'Lost';
-        else if (exType.includes('5')) status = 'Low Battery';
-        else if (exType.includes('1') || sensor.tirepValue > 105) status = 'High Pressure';
-        else if (exType.includes('2') || sensor.tirepValue < 80) status = 'Low Pressure';
-        else if (exType.includes('3') || sensor.tempValue > 85) status = 'High Temp';
+        // ✅ NEW THRESHOLDS (Dec 2025 Update)
+        // Temperature: Normal 60-84°C, Warning ≥85°C, Critical ≥100°C
+        // Pressure: Normal 100-119 PSI, Critical Low <90 PSI, Critical High ≥120 PSI
+        
+        if (exType.includes('4')) {
+          status = 'Lost';
+        } else if (exType.includes('5')) {
+          status = 'Low Battery';
+        } else if (exType.includes('1') || pressure >= 120) {
+          status = 'High Pressure';
+        } else if (exType.includes('2') || pressure < 90) {
+          status = 'Low Pressure';
+        } else if (exType.includes('3') || temperature >= 100) {
+          status = 'High Temp';
+        }
 
         tireData.push({
           id: `${truck.truck_id}-${sensor.id}`,
@@ -164,8 +178,8 @@ export const getTirePressureMonitoring = async () => {
           truckName: truck.truck_name || 'N/A',
           tireLocation: `Tire ${sensor.tireNo || sensor.sensorNo || 'N/A'}`,
           serialNumber: sensor.sn || `SENSOR-${sensor.id}`,
-          pressure: sensor.tirepValue || 0,
-          temperature: sensor.tempValue || 0,
+          pressure: pressure,
+          temperature: temperature,
           battery: sensor.bat || 0,
           status: status,
           exType: exType,

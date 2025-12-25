@@ -89,17 +89,21 @@ export default function SensorMonitoring() {
   const getAlertStatus = React.useCallback((sensor) => {
     const alerts = [];
     
+    // ✅ NEW THRESHOLDS (Dec 2025 Update)
+    // Temperature: Normal 60-84°C, Warning ≥85°C, Critical ≥100°C
+    // Pressure: Normal 100-119 PSI, Critical Low <90 PSI, Critical High ≥120 PSI
+    
     // Temperature alerts (priority order)
-    if (sensor.temperature > 90) {
+    if (sensor.temperature >= 100) {
       alerts.push('Temperature Critical');
-    } else if (sensor.temperature > 80) {
+    } else if (sensor.temperature >= 85) {
       alerts.push('Temperature Warning');
     }
     
     // Pressure alerts (priority order)
-    if (sensor.pressure > 110) {
+    if (sensor.pressure >= 120) {
       alerts.push('Pressure High');
-    } else if (sensor.pressure < 85) {
+    } else if (sensor.pressure < 90) {
       alerts.push('Pressure Low');
     }
     
@@ -226,15 +230,15 @@ export default function SensorMonitoring() {
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
               <h3 className="text-xs font-semibold text-gray-700 mb-2">🔴 Critical Alerts</h3>
               <div className="space-y-1 text-xs text-gray-600">
-                <div>• Temperature Critical: &gt; 90°C</div>
-                <div>• Pressure High: &gt; 110 PSI</div>
+                <div>• Temperature Critical: ≥ 100°C</div>
+                <div>• Pressure High: ≥ 120 PSI</div>
+                <div>• Pressure Low: &lt; 90 PSI</div>
               </div>
             </div>
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
               <h3 className="text-xs font-semibold text-gray-700 mb-2">🟡 Warning Alerts</h3>
               <div className="space-y-1 text-xs text-gray-600">
-                <div>• Temperature Warning: &gt; 80°C</div>
-                <div>• Pressure Low: &lt; 85 PSI</div>
+                <div>• Temperature Warning: ≥ 85°C</div>
               </div>
             </div>
           </div>
@@ -462,9 +466,9 @@ export default function SensorMonitoring() {
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span
                             className={`text-base font-semibold ${
-                              sensor.pressure > 110
+                              sensor.pressure >= 120 || sensor.pressure < 90
                                 ? 'text-red-600'
-                                : sensor.pressure < 85
+                                : sensor.pressure < 100 || sensor.pressure >= 119
                                   ? 'text-yellow-600'
                                   : 'text-gray-900'
                             }`}
@@ -475,9 +479,9 @@ export default function SensorMonitoring() {
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span
                             className={`text-base font-semibold ${
-                              sensor.temperature > 90
+                              sensor.temperature >= 100
                                 ? 'text-red-600'
-                                : sensor.temperature > 80
+                                : sensor.temperature >= 85
                                   ? 'text-yellow-600'
                                   : 'text-gray-900'
                             }`}

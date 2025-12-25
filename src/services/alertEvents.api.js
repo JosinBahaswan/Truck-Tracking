@@ -4,7 +4,7 @@
  * Backend URL: Uses VITE_ALERTS_API_BASE_URL from .env
  */
 
-const BASE_URL = import.meta.env.VITE_ALERTS_API_BASE_URL || 'http://10.145.139.10:3001/api';
+const BASE_URL = import.meta.env.VITE_ALERTS_API_BASE_URL || '/alerts-api/api';
 const TESTING_MODE = true; // Set to false in production
 
 /**
@@ -229,6 +229,8 @@ export const alertEventsAPI = {
       const data = await fetchWithTimeout(url, {
         method: 'PATCH',
         headers,
+        mode: 'cors',
+        credentials: 'omit',
       });
 
       console.log('✅ Alert resolved:', data.data?.id);

@@ -62,7 +62,8 @@ const TirePressureDisplay = ({
   };
 
   const IconsLayout = () => {
-    const kpaToPsi = (kpa) => Math.round((kpa || 0) * 0.1450377);
+    // ⚠️ Backend data is already in PSI (field name "pressure_kpa" is misleading)
+    const kpaToPsi = (psi) => Math.round(psi || 0); // No conversion, just round
     const colorHex = (reading) => {
       const st = reading
         ? getTireStatus(reading.pressure_kpa, reading.temp_celsius, reading.ex_type)
@@ -230,11 +231,16 @@ const TirePressureDisplay = ({
   }, [selectedTruckId, propTireData]);
 
   const getTireStatus = (pressure, temperature, exType) => {
-    // Convert kPa to PSI (1 kPa = 0.145 PSI)
-    const psi = pressure * 0.145;
+    // ⚠️ IMPORTANT: Backend sends pressure already in PSI (not kPa)
+    // Field name "pressure_kpa" is misleading - data is actually in PSI
+    const psi = pressure; // No conversion needed!
     
-    // Check for critical temperature (> 90°C)
-    if (temperature > 90) {
+    // ✅ NEW THRESHOLDS (Dec 2025 Update)
+    // Temperature: Normal 60-84°C, Warning ≥85°C, Critical ≥100°C
+    // Pressure: Normal 100-119 PSI, Critical Low <90 PSI, Critical High ≥120 PSI
+    
+    // Check for critical temperature (≥ 100°C)
+    if (temperature >= 100) {
       return {
         status: 'critical',
         color: 'bg-red-600',
@@ -245,8 +251,8 @@ const TirePressureDisplay = ({
       };
     }
     
-    // Check for temperature warning (> 80°C)
-    if (temperature > 80) {
+    // Check for temperature warning (≥ 85°C)
+    if (temperature >= 85) {
       return {
         status: 'warning',
         color: 'bg-orange-500',
@@ -257,27 +263,27 @@ const TirePressureDisplay = ({
       };
     }
     
-    // Check for low pressure (< 85 PSI)
-    if (psi < 85) {
+    // Check for critical low pressure (< 90 PSI)
+    if (psi < 90) {
       return {
-        status: 'warning',
-        color: 'bg-orange-500',
-        textColor: 'text-orange-700',
-        bgColor: 'bg-orange-50',
-        borderColor: 'border-orange-300',
-        message: 'Pressure Low'
+        status: 'critical',
+        color: 'bg-red-600',
+        textColor: 'text-red-700',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-red-300',
+        message: 'Pressure Critical Low'
       };
     }
     
-    // Check for high pressure (> 110 PSI)
-    if (psi > 110) {
+    // Check for critical high pressure (≥ 120 PSI)
+    if (psi >= 120) {
       return {
-        status: 'warning',
-        color: 'bg-orange-500',
-        textColor: 'text-orange-700',
-        bgColor: 'bg-orange-50',
-        borderColor: 'border-orange-300',
-        message: 'Pressure High'
+        status: 'critical',
+        color: 'bg-red-600',
+        textColor: 'text-red-700',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-red-300',
+        message: 'Pressure Critical High'
       };
     }
     
@@ -410,7 +416,8 @@ const TirePressureDisplay = ({
   );
 
   const ListLayout = () => {
-    const kpaToPsi = (kpa) => Math.round((kpa || 0) * 0.1450377);
+    // ⚠️ Backend data is already in PSI (field name "pressure_kpa" is misleading)
+    const kpaToPsi = (psi) => Math.round(psi || 0); // No conversion, just round
     const statusBar = (reading) => {
       const st = reading
         ? getTireStatus(reading.pressure_kpa, reading.temp_celsius, reading.ex_type)

@@ -19,6 +19,13 @@ export default defineConfig({
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
+      // Proxy khusus untuk Alerts API (bypass CORS)
+      '/alerts-api': {
+        target: 'http://10.86.215.10:3001',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/alerts-api/, ''),
+      },
       // Proxy untuk WebSocket (jika diperlukan)
       '/ws': {
         target: 'wss://tpms.solonet.net.id', // Ganti dengan URL WebSocket Anda

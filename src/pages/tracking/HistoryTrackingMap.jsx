@@ -55,6 +55,7 @@ const HistoryTrackingMap = () => {
 
   const markersRef = useRef({});
   const routeLinesRef = useRef({});
+  const routeStartMarkersRef = useRef({}); // Track route start markers
   const manualRouteRef = useRef(null);
   const playbackMarkerRef = useRef(null);
   const playbackTimerRef = useRef(null);
@@ -354,7 +355,8 @@ const HistoryTrackingMap = () => {
                 plateNumber: truck.plate_number,
                 model: truck.model,
                 driver: truck.driver?.name || 'Unknown Driver',
-                position: [lat, lng],
+                position: [lat, lng], // This will be replaced with history start position
+                livePosition: [lat, lng], // Store live position separately
                 status: truck.status || 'active',
                 speed: 0,
                 heading: 0,
@@ -374,9 +376,7 @@ const HistoryTrackingMap = () => {
           console.error('❌ Tracking API failed, no vehicles loaded');
         }
 
-        setVehicles(vehicleData);
-
-        // Load route history for each vehicle
+        // Load route history for each vehicle BEFORE setting vehicles state
         const routesData = {};
         const routeVisibilityData = {};
 
@@ -389,11 +389,17 @@ const HistoryTrackingMap = () => {
             routeVisibilityData[vehicle.id] = true;
             // store meta records for stats
             routeMetaByVehicleRef.current[vehicle.id] = history.records;
+            
+            // IMPORTANT: Update vehicle position to first point in history route
+            // This ensures marker shows historical start position, not current live position
+            vehicle.position = history.points[0]; // First point = start of route
+            console.log(`📍 Updated ${vehicle.id} marker to history start:`, vehicle.position);
           } else {
             console.warn(`⚠️ No route points found for vehicle ${vehicle.id}`);
           }
         }
 
+        setVehicles(vehicleData);
         setVehicleRoutes(routesData);
         setRouteVisible(routeVisibilityData);
         // commit meta records from ref to state to avoid stale closure
@@ -407,7 +413,9 @@ const HistoryTrackingMap = () => {
 
     if (map) {
       loadHistoryData();
-      const interval = setInterval(loadHistoryData, 5 * 60 * 1000);
+      // Longer interval for history tracking (30 minutes) to avoid interference
+      // History data doesn't change frequently, so less polling is needed
+      const interval = setInterval(loadHistoryData, 30 * 60 * 1000);
       return () => clearInterval(interval);
     }
   }, [map, selectedDate, shiftMode, customStart, customEnd]);
@@ -428,8 +436,16 @@ const HistoryTrackingMap = () => {
         }
       });
 
+      // Clear route start markers
+      Object.values(routeStartMarkersRef.current).forEach((marker) => {
+        if (marker && map.hasLayer(marker)) {
+          map.removeLayer(marker);
+        }
+      });
+
       markersRef.current = {};
       routeLinesRef.current = {};
+      routeStartMarkersRef.current = {};
 
       // Add vehicle markers and routes
       vehicles.forEach((vehicle, index) => {
@@ -511,8 +527,11 @@ const HistoryTrackingMap = () => {
           });
         } else {
           // Update existing marker position and icon
-          marker.setLatLng(vehicle.position);
-          marker.setIcon(icon);
+          // Only update if this vehicle is not currently selected for playback
+          if (!selectedVehicle || selectedVehicle.id !== vehicle.id) {
+            marker.setLatLng(vehicle.position);
+            marker.setIcon(icon);
+          }
         }
 
         // Add route line if exists and visible
@@ -533,7 +552,7 @@ const HistoryTrackingMap = () => {
 
           routeLinesRef.current[vehicle.id] = routeLine;
 
-          // Add route start marker
+          // Add route start marker (tracked to prevent duplicates)
           if (routeHistory.length > 0) {
             const startIcon = L.divIcon({
               html: `
@@ -561,12 +580,15 @@ const HistoryTrackingMap = () => {
               iconAnchor: [8, 8],
             });
 
-            L.marker(routeHistory[0], { icon: startIcon })
+            const startMarker = L.marker(routeHistory[0], { icon: startIcon })
               .addTo(map)
               .bindTooltip(`${vehicle.id} - Route Start (${routeHistory.length} points)`, {
                 permanent: false,
                 direction: 'top',
               });
+            
+            // Track the start marker for cleanup
+            routeStartMarkersRef.current[vehicle.id] = startMarker;
           }
 
           // Add route info tooltip
@@ -595,6 +617,17 @@ const HistoryTrackingMap = () => {
             map.removeLayer(marker);
           }
           delete markersRef.current[id];
+        }
+      });
+      
+      // Remove route start markers that are no longer needed
+      Object.keys(routeStartMarkersRef.current).forEach((id) => {
+        if (!currentVehicleIds.has(id)) {
+          const marker = routeStartMarkersRef.current[id];
+          if (marker && map.hasLayer(marker)) {
+            map.removeLayer(marker);
+          }
+          delete routeStartMarkersRef.current[id];
         }
       });
 
@@ -895,12 +928,53 @@ const HistoryTrackingMap = () => {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="pb-3 border-b border-gray-200 mb-3 shrink-0">
-        <h4 className="text-base font-bold text-gray-900">History Tracking</h4>
-        <p className="text-xs text-gray-500 mt-0.5">Pantau riwayat perjalanan kendaraan</p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h4 className="text-base font-bold text-gray-900">History Tracking</h4>
+            <p className="text-xs text-gray-500 mt-0.5">Pantau riwayat perjalanan kendaraan</p>
+          </div>
+          {selectedVehicle && (
+            <button
+              onClick={() => {
+                setSelectedVehicle(null);
+                setPlaybackIndex(0);
+                setIsPlaybackPlaying(false);
+                setCurrentPlaybackTireData(null);
+                setCurrentPlaybackTimestamp(null);
+                if (playbackTimerRef.current) {
+                  clearInterval(playbackTimerRef.current);
+                  playbackTimerRef.current = null;
+                }
+                console.log('✓ Vehicle deselected, static markers restored');
+              }}
+              className="shrink-0 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
+              title="Clear selection"
+            >
+              ✕ Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden space-y-4 pr-1">
+        {/* Selected Vehicle Info */}
+        {selectedVehicle && (
+          <div className="px-3 py-2 rounded-lg border bg-blue-50 border-blue-300">
+            <div className="flex items-start gap-2">
+              <span className="text-base">🚛</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-blue-700">
+                  {selectedVehicle.plateNumber || selectedVehicle.id}
+                </div>
+                <div className="text-[10px] mt-0.5 text-blue-600">
+                  Viewing historical route playback
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* API Status Indicator */}
         {selectedVehicle && (
           <div className={`px-3 py-2 rounded-lg border ${

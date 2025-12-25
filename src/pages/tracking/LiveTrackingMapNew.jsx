@@ -364,7 +364,10 @@ const LiveTrackingMapNew = () => {
       };
 
       ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
+        // Only log once per connection attempt to avoid console spam
+        if (wsReconnectAttempts.current === 0) {
+          console.error('❌ WebSocket connection failed (likely server unavailable)');
+        }
         setWsStatus('error');
       };
 
@@ -375,12 +378,12 @@ const LiveTrackingMapNew = () => {
         wsRef.current = null;
         
         // Only reconnect if not a normal closure and not exceeded max attempts
-        const MAX_RECONNECT_ATTEMPTS = 10;
+        const MAX_RECONNECT_ATTEMPTS = 3; // Reduced from 10 to 3
         if (event.code !== 1000 && wsReconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
           wsReconnectAttempts.current++;
           
-          // Exponential backoff: 3s, 6s, 12s, 24s, 48s, max 60s
-          const delay = Math.min(3000 * Math.pow(2, wsReconnectAttempts.current - 1), 60000);
+          // Exponential backoff: 3s, 6s, 12s
+          const delay = Math.min(3000 * Math.pow(2, wsReconnectAttempts.current - 1), 12000);
           
           console.log(`🔄 Will reconnect in ${delay/1000}s (attempt ${wsReconnectAttempts.current}/${MAX_RECONNECT_ATTEMPTS})`);
           
@@ -389,7 +392,8 @@ const LiveTrackingMapNew = () => {
             connectWebSocket();
           }, delay);
         } else if (wsReconnectAttempts.current >= MAX_RECONNECT_ATTEMPTS) {
-          console.error('❌ Max reconnection attempts reached. Using polling fallback.');
+          console.warn('⚠️ WebSocket failed after 3 attempts. Using polling only.');
+          console.warn('💡 Live tracking will continue via REST API polling (3s interval)');
           setWsStatus('failed');
         }
       };
@@ -401,7 +405,8 @@ const LiveTrackingMapNew = () => {
 
   // Handle real-time truck location update from WebSocket
   const handleTruckLocationUpdate = useCallback((data) => {
-    console.log('📍 Real-time truck update:', data);
+    const timestamp = new Date().toLocaleTimeString();
+    console.log(`🔥 [${timestamp}] WebSocket UPDATE received:`, data);
     
     const truck = data;
     const id = truck.truckId ? String(truck.truckId) : null;
@@ -465,9 +470,11 @@ const LiveTrackingMapNew = () => {
       if (existingIndex >= 0) {
         // Update existing vehicle
         const updated = [...prev];
-        updated[existingIndex] = vehicleData;
+        console.log(`✅ Vehicle ${id} updated via WebSocket at [${lat}, ${lng}]`);
         return updated;
       } else {
+        // Add new vehicle
+        console.log(`✅ New vehicle ${id} added via WebSocket at [${lat}, ${lng}]`);
         // Add new vehicle
         return [...prev, vehicleData];
       }
@@ -545,24 +552,25 @@ const LiveTrackingMapNew = () => {
     loadVehiclesFromBackend(); // Panggil fungsi load data kendaraan
   }, [timeRange, mapUtils, loadVehiclesFromBackend]); // Re-run saat timeRange atau mapUtils berubah
 
-  // WebSocket connection for real-time updates (replaces 3-second polling)
+  // WebSocket connection for real-time updates WITH polling fallback
   useEffect(() => {
     console.log('🚀 Initializing WebSocket for real-time tracking...');
+    console.log('🔄 Fallback polling enabled (3s interval) for reliability');
     
     // Reset reconnection counter on mount
     wsReconnectAttempts.current = 0;
     
-    // Connect WebSocket for real-time updates
+    // Connect WebSocket for real-time updates (best case)
     connectWebSocket();
     
-    // Fallback polling DISABLED to test WebSocket real-time updates
-    // If WebSocket disconnects, NO fallback - this proves WebSocket is working
-    // const fallbackInterval = setInterval(() => {
-    //   if (wsStatus !== 'connected') {
-    //     console.log('⚠️ WebSocket not connected, using fallback polling');
-    //     loadVehiclesFromBackend();
-    //   }
-    // }, 30000);
+    // Fallback polling - ensures app works even if WebSocket fails
+    // This will provide updates every 3 seconds via REST API
+    const fallbackInterval = setInterval(() => {
+      if (wsStatus !== 'connected') {
+        console.log(`🔄 Polling fallback (WS: ${wsStatus})`);
+      }
+      loadVehiclesFromBackend();
+    }, 3000); // Poll every 3 seconds
     
     // Keep-alive ping every 30 seconds
     const pingInterval = setInterval(() => {
@@ -577,7 +585,7 @@ const LiveTrackingMapNew = () => {
     
     return () => {
       console.log('🗑️ Cleaning up WebSocket connection');
-      // clearInterval(fallbackInterval); // Commented out - no fallback polling
+      clearInterval(fallbackInterval);
       clearInterval(pingInterval);
       
       // Clear any pending reconnection timeout
@@ -1049,26 +1057,53 @@ const LiveTrackingMapNew = () => {
     if (!map || !selectedVehicle || !showVehicleCard) return; // Only update if vehicle card is shown
     
     const routeHistory = vehicleRoutes[selectedVehicle.id];
-    if (!routeHistory || routeHistory.length <= 1) return; // Need at least 2 points
+    if (!routeHistory || routeHistory.length === 0) return; // Need at least 1 point
     
     try {
       const L = window.L || require('leaflet'); // eslint-disable-line no-undef
       
-      // Update or recreate polyline with new route points
+      // CRITICAL FIX: Always use current marker position as the last point
+      // This ensures the route line NEVER extends beyond the marker icon
+      const currentMarker = markersRef.current[selectedVehicle.id];
+      if (!currentMarker) {
+        console.warn(`⚠️ No marker found for ${selectedVehicle.id}`);
+        return;
+      }
+      
+      const markerPos = currentMarker.getLatLng();
+      const currentPosition = [markerPos.lat, markerPos.lng];
+      
+      // Build final route: all history points except last + current marker position
+      // This guarantees the line ends exactly at the marker
+      let finalRoute;
+      if (routeHistory.length === 1) {
+        // Only one point, use current marker position
+        finalRoute = [currentPosition];
+      } else {
+        // Multiple points: keep all except last, then add current marker position
+        finalRoute = [...routeHistory.slice(0, -1), currentPosition];
+      }
+      
+      if (finalRoute.length < 2) {
+        // Need at least 2 points to draw a line
+        return;
+      }
+      
+      // Update or recreate polyline with final route points
       if (liveRouteLineRef.current && map.hasLayer(liveRouteLineRef.current)) {
         // Polyline exists and is on map - just update coordinates
-        liveRouteLineRef.current.setLatLngs(routeHistory);
-        console.log(`📍 Updated route line for ${selectedVehicle.id}: ${routeHistory.length} points`);
+        liveRouteLineRef.current.setLatLngs(finalRoute);
+        console.log(`📍 Updated route line for ${selectedVehicle.id}: ${finalRoute.length} points (ending at marker)`);
       } else {
         // Polyline missing or removed - recreate it
-        console.log(`🔄 Recreating route line for ${selectedVehicle.id}: ${routeHistory.length} points`);
+        console.log(`🔄 Recreating route line for ${selectedVehicle.id}: ${finalRoute.length} points`);
         
         const routeColor = '#2563eb'; // Blue color
-        liveRouteLineRef.current = L.polyline(routeHistory, {
+        liveRouteLineRef.current = L.polyline(finalRoute, {
           color: routeColor,
           weight: 3,
           opacity: 0.9,
-          smoothFactor: 2,
+          smoothFactor: 1, // Reduced smoothing to keep line precise
           lineJoin: 'round',
           lineCap: 'round',
           pane: 'routesPane',
@@ -1077,7 +1112,7 @@ const LiveTrackingMapNew = () => {
       
       // Update START marker position if it exists (no recreation to avoid duplicates)
       if (liveRouteMarkersRef.current.start && map.hasLayer(liveRouteMarkersRef.current.start)) {
-        const startPoint = routeHistory[0]; // Oldest point (first in sorted array)
+        const startPoint = finalRoute[0]; // Oldest point (first in sorted array)
         liveRouteMarkersRef.current.start.setLatLng(startPoint);
         console.log(`📍 Updated START marker to oldest point: [${startPoint[0]}, ${startPoint[1]}]`);
       }

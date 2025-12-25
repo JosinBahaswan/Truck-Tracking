@@ -3,6 +3,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import TailwindLayout from '../../components/layout/TailwindLayout.jsx';
 import {
   ExclamationTriangleIcon,
+  ExclamationCircleIcon,
+  InformationCircleIcon,
   XCircleIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -19,15 +21,23 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
 } from '../../components/common/DropdownMenu.jsx';
+import AlertModal from '../../components/common/AlertModal.jsx';
+import { useAlertNotifications } from '../../hooks/useAlertNotifications.js';
 
 const Alerts = () => {
+  const { refresh: refreshNotifications } = useAlertNotifications();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterSeverity, setFilterSeverity] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterPeriod, setFilterPeriod] = useState(''); // 'today', 'week', 'month'
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   const [stats, setStats] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalConfig, setModalConfig] = useState({});
+  const [selectedAlert, setSelectedAlert] = useState(null);
+  const [isResolving, setIsResolving] = useState(false);
   const pageSize = 20;
 
   const loadAlerts = useCallback(async () => {
@@ -44,6 +54,27 @@ const Alerts = () => {
 
       if (filterSeverity) params.severity = filterSeverity;
       if (filterStatus) params.status = filterStatus;
+      
+      // Add date range based on period filter
+      if (filterPeriod) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        if (filterPeriod === 'today') {
+          // Today: from 00:00:00 today
+          params.date_from = today.toISOString().split('T')[0];
+        } else if (filterPeriod === 'week') {
+          // Last 7 days
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          params.date_from = weekAgo.toISOString().split('T')[0];
+        } else if (filterPeriod === 'month') {
+          // Last 30 days
+          const monthAgo = new Date(today);
+          monthAgo.setDate(monthAgo.getDate() - 30);
+          params.date_from = monthAgo.toISOString().split('T')[0];
+        }
+      }
 
       const response = await alertEventsAPI.getAlerts(params);
       console.log('✅ Alerts response:', response);
@@ -58,7 +89,7 @@ const Alerts = () => {
     } finally {
       setLoading(false);
     }
-  }, [filterSeverity, filterStatus, page]);
+  }, [filterSeverity, filterStatus, filterPeriod, page]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -84,18 +115,145 @@ const Alerts = () => {
     return () => clearInterval(interval);
   }, [loadAlerts, loadStats]);
 
-  const handleResolveAlert = async (alertId) => {
-    if (!window.confirm('Mark this alert as resolved?')) return;
+  const handleResolveAlert = async () => {
+    if (!selectedAlert || isResolving) return;
+
+    setIsResolving(true);
+    setShowModal(false);
 
     try {
-      await alertEventsAPI.resolveAlert(alertId);
+      await alertEventsAPI.resolveAlert(selectedAlert.id);
       console.log('✅ Alert resolved successfully');
-      loadAlerts();
-      loadStats();
+      
+      setModalConfig({
+        type: 'success',
+        title: 'Alert Resolved!',
+        message: 'The alert has been marked as resolved successfully.',
+      });
+      setShowModal(true);
+      
+      setTimeout(() => {
+        setShowModal(false);
+        loadAlerts();
+        loadStats();
+        refreshNotifications(); // Refresh header notifications immediately
+      }, 500);
     } catch (error) {
       console.error('❌ Failed to resolve alert:', error);
-      alert('Failed to resolve alert: ' + error.message);
+      setModalConfig({
+        type: 'error',
+        title: 'Failed!',
+        message: error.message || 'Failed to resolve alert. Please try again.',
+      });
+      setShowModal(true);
+    } finally {
+      setIsResolving(false);
     }
+  };
+
+  const handleResolveAll = async () => {
+    setShowModal(false);
+    setIsResolving(true);
+
+    try {
+      // Fetch ALL active alerts from backend (not just current page)
+      console.log('🔄 Fetching all active alerts from backend...');
+      const response = await alertEventsAPI.getActiveAlerts();
+      
+      if (!response.success || !response.data) {
+        throw new Error('Failed to fetch active alerts');
+      }
+      
+      const allActiveAlerts = Array.isArray(response.data) ? response.data : [];
+      
+      if (allActiveAlerts.length === 0) {
+        setModalConfig({
+          type: 'info',
+          title: 'No Active Alerts',
+          message: 'There are no active alerts to resolve.',
+        });
+        setShowModal(true);
+        setIsResolving(false);
+        return;
+      }
+
+      console.log(`🔄 Resolving ${allActiveAlerts.length} alerts from entire database...`);
+      
+      // Use Promise.allSettled to handle partial failures
+      const results = await Promise.allSettled(
+        allActiveAlerts.map(alert => alertEventsAPI.resolveAlert(alert.id))
+      );
+
+      // Count successes and failures
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      console.log(`✅ Resolved: ${successful}, ❌ Failed: ${failed}`);
+      
+      if (failed === 0) {
+        // All succeeded
+        setModalConfig({
+          type: 'success',
+          title: 'Success!',
+          message: `${successful} alert(s) have been resolved successfully.`,
+        });
+      } else if (successful === 0) {
+        // All failed
+        setModalConfig({
+          type: 'error',
+          title: 'Failed!',
+          message: `Failed to resolve all ${allActiveAlerts.length} alert(s). Please try again.`,
+        });
+      } else {
+        // Partial success
+        setModalConfig({
+          type: 'warning',
+          title: 'Partially Completed',
+          message: `${successful} alert(s) resolved successfully, but ${failed} alert(s) failed.`,
+        });
+      }
+      
+      setShowModal(true);
+      
+      setTimeout(() => {
+        setShowModal(false);
+        loadAlerts();
+        loadStats();
+        refreshNotifications(); // Refresh header notifications immediately
+      }, 500);
+    } catch (error) {
+      console.error('❌ Failed to resolve all alerts:', error);
+      setModalConfig({
+        type: 'error',
+        title: 'Failed!',
+        message: error.message || 'Failed to resolve alerts. Please try again.',
+      });
+      setShowModal(true);
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const openResolveDialog = (alert) => {
+    setSelectedAlert(alert);
+    setModalConfig({
+      type: 'warning',
+      title: 'Resolve Alert?',
+      message: `Are you sure you want to mark this alert as resolved?\n\n${alert.message}`,
+      showCancel: true,
+    });
+    setShowModal(true);
+  };
+
+  const openResolveAllDialog = () => {
+    const activeCount = stats?.summary?.active || 0;
+    setModalConfig({
+      type: 'warning',
+      title: 'Resolve All Alerts?',
+      message: `Are you sure you want to resolve all ${activeCount} active alert(s) in the entire database?`,
+      showCancel: true,
+    });
+    setShowModal(true);
   };
 
   const getSeverityColor = (severity) => {
@@ -107,9 +265,9 @@ const Alerts = () => {
 
   const getSeverityIcon = (severity) => {
     const sev = String(severity || '').toLowerCase();
-    if (sev === 'critical') return <FireIcon className="h-6 w-6 text-red-500" />;
-    if (sev === 'warning') return <ExclamationTriangleIcon className="h-6 w-6 text-yellow-500" />;
-    return <ClockIcon className="h-6 w-6 text-blue-500" />;
+    if (sev === 'critical') return <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />;
+    if (sev === 'warning') return <ExclamationCircleIcon className="h-6 w-6 text-yellow-600" />;
+    return <InformationCircleIcon className="h-6 w-6 text-blue-600" />;
   };
 
   const formatTimeAgo = (dateStr) => {
@@ -135,25 +293,35 @@ const Alerts = () => {
                 Real-time tire pressure & temperature monitoring alerts
               </p>
             </div>
-            <button
-              onClick={() => {
-                loadAlerts();
-                loadStats();
-              }}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
-            >
-              <ArrowPathIcon className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={openResolveAllDialog}
+                disabled={isResolving || !stats?.summary?.active}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircleIcon className="h-5 w-5" />
+                Resolve All ({stats?.summary?.active || 0})
+              </button>
+              <button
+                onClick={() => {
+                  loadAlerts();
+                  loadStats();
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+              >
+                <ArrowPathIcon className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
 
           {/* Stats Cards */}
           {stats && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
               <div className="bg-white rounded-lg shadow-sm p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Total Alerts</p>
+                    <p className="text-sm text-gray-500">Total</p>
                     <p className="text-2xl font-bold text-gray-900">{stats.summary.total}</p>
                   </div>
                   <ClockIcon className="h-8 w-8 text-gray-400" />
@@ -163,9 +331,9 @@ const Alerts = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">Active</p>
-                    <p className="text-2xl font-bold text-yellow-600">{stats.summary.active}</p>
+                    <p className="text-2xl font-bold text-orange-600">{stats.summary.active}</p>
                   </div>
-                  <ExclamationTriangleIcon className="h-8 w-8 text-yellow-500" />
+                  <ExclamationCircleIcon className="h-8 w-8 text-orange-500" />
                 </div>
               </div>
               <div className="bg-white rounded-lg shadow-sm p-4">
@@ -174,7 +342,16 @@ const Alerts = () => {
                     <p className="text-sm text-gray-500">Critical</p>
                     <p className="text-2xl font-bold text-red-600">{stats.summary.critical}</p>
                   </div>
-                  <FireIcon className="h-8 w-8 text-red-500" />
+                  <ExclamationTriangleIcon className="h-8 w-8 text-red-500" />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Warning</p>
+                    <p className="text-2xl font-bold text-yellow-600">{stats.summary.warning || 0}</p>
+                  </div>
+                  <ExclamationCircleIcon className="h-8 w-8 text-yellow-500" />
                 </div>
               </div>
               <div className="bg-white rounded-lg shadow-sm p-4">
@@ -192,31 +369,41 @@ const Alerts = () => {
           {/* Filters */}
           <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <FunnelIcon className="h-5 w-5 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">Filters:</span>
-              </div>
+
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <FunnelIcon className="h-4 w-4 mr-2" />
-                    {filterSeverity === 'critical'
-                      ? 'Critical'
-                      : filterSeverity === 'warning'
-                        ? 'Warning'
-                        : filterSeverity === 'info'
-                          ? 'Info'
-                          : 'All Severities'}
+                  <Button variant="outline" size="sm" className="gap-2">
+                    {filterSeverity === 'critical' && (
+                      <>
+                        <ExclamationTriangleIcon className="h-4 w-4 text-red-600" />
+                        <span>Critical</span>
+                      </>
+                    )}
+                    {filterSeverity === 'warning' && (
+                      <>
+                        <ExclamationCircleIcon className="h-4 w-4 text-yellow-600" />
+                        <span>Warning</span>
+                      </>
+                    )}
+                    {filterSeverity === 'info' && (
+                      <>
+                        <InformationCircleIcon className="h-4 w-4 text-blue-600" />
+                        <span>Info</span>
+                      </>
+                    )}
+                    {!filterSeverity && <span>All Severities</span>}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48">
+                <DropdownMenuContent className="w-56">
                   <DropdownMenuItem
                     onClick={() => {
                       setFilterSeverity('');
                       setPage(1);
                     }}
+                    className="cursor-pointer"
                   >
+                    <FunnelIcon className="h-4 w-4 mr-2 text-gray-500" />
                     All Severities
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -225,24 +412,39 @@ const Alerts = () => {
                       setFilterSeverity('critical');
                       setPage(1);
                     }}
+                    className="cursor-pointer"
                   >
-                    Critical
+                    <ExclamationTriangleIcon className="h-4 w-4 mr-2 text-red-600" />
+                    <span>Critical</span>
+                    <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                      High Priority
+                    </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
                       setFilterSeverity('warning');
                       setPage(1);
                     }}
+                    className="cursor-pointer"
                   >
-                    Warning
+                    <ExclamationCircleIcon className="h-4 w-4 mr-2 text-yellow-600" />
+                    <span>Warning</span>
+                    <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                      Medium
+                    </span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
                       setFilterSeverity('info');
                       setPage(1);
                     }}
+                    className="cursor-pointer"
                   >
-                    Info
+                    <InformationCircleIcon className="h-4 w-4 mr-2 text-blue-600" />
+                    <span>Info</span>
+                    <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                      Low Priority
+                    </span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -285,81 +487,162 @@ const Alerts = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    {filterPeriod === 'today'
+                      ? 'Hari Ini'
+                      : filterPeriod === 'week'
+                        ? '7 Hari Terakhir'
+                        : filterPeriod === 'month'
+                          ? '30 Hari Terakhir'
+                          : 'Semua Periode'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-48">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setFilterPeriod('');
+                      setPage(1);
+                    }}
+                  >
+                    Semua Periode
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setFilterPeriod('today');
+                      setPage(1);
+                    }}
+                  >
+                    Hari Ini
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setFilterPeriod('week');
+                      setPage(1);
+                    }}
+                  >
+                    7 Hari Terakhir
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setFilterPeriod('month');
+                      setPage(1);
+                    }}
+                  >
+                    30 Hari Terakhir
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
           {/* Alerts List */}
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="rounded-lg overflow-hidden">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <ArrowPathIcon className="h-8 w-8 text-indigo-600 animate-spin" />
-                <span className="ml-3 text-gray-600">Loading alerts...</span>
+              <div className="bg-white rounded-lg shadow-sm">
+                <div className="flex items-center justify-center py-12">
+                  <ArrowPathIcon className="h-8 w-8 text-indigo-600 animate-spin" />
+                  <span className="ml-3 text-gray-600">Loading alerts...</span>
+                </div>
               </div>
             ) : alerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <CheckCircleIcon className="h-16 w-16 text-gray-300 mb-4" />
-                <p className="text-gray-500">No alerts found</p>
+              <div className="bg-white rounded-lg shadow-sm">
+                <div className="flex flex-col items-center justify-center py-12">
+                  <CheckCircleIcon className="h-16 w-16 text-gray-300 mb-4" />
+                  <p className="text-gray-500">No alerts found</p>
+                </div>
               </div>
             ) : (
-              <div className="divide-y divide-gray-200">
+              <div className="space-y-3">
                 {alerts.map((alert) => (
                   <div
                     key={alert.id}
-                    className={`p-4 hover:bg-gray-50 transition-colors ${
-                      alert.status === 'active' ? 'border-l-4 border-l-yellow-500' : ''
+                    className={`bg-white border-2 rounded-lg shadow-sm hover:shadow-md transition-all ${
+                      alert.status === 'active'
+                        ? alert.severity === 'critical'
+                          ? 'border-l-4 border-l-red-500 border-t-red-100 border-r-red-100 border-b-red-100'
+                          : alert.severity === 'warning'
+                            ? 'border-l-4 border-l-yellow-500 border-t-yellow-100 border-r-yellow-100 border-b-yellow-100'
+                            : 'border-l-4 border-l-blue-500 border-t-blue-100 border-r-blue-100 border-b-blue-100'
+                        : 'border-l-4 border-l-gray-300 border-t-gray-200 border-r-gray-200 border-b-gray-200'
                     }`}
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="shrink-0">{getSeverityIcon(alert.severity)}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-sm font-semibold text-gray-900">
-                            {alert.alert?.name || 'Alert Event'}
-                          </h3>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getSeverityColor(alert.severity)}`}
-                          >
-                            {alert.severity}
-                          </span>
+                    <div className="p-4">
+                      <div className="flex items-center gap-4">
+                        {/* Icon */}
+                        <div className="shrink-0">
+                          {getSeverityIcon(alert.severity)}
                         </div>
-                        <p className="text-sm text-gray-700 mb-2">{alert.message}</p>
-                        <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium">Truck:</span>
-                            <span>{alert.truck?.name || `#${alert.truck_id}`}</span>
-                          </div>
-                          {alert.sensor && (
-                            <div className="flex items-center gap-1">
-                              <span className="font-medium">Sensor:</span>
-                              <span>
-                                Tire {alert.sensor.tire_no} ({alert.sensor.sn})
+
+                        {/* Content - Horizontal Layout */}
+                        <div className="flex-1 min-w-0 flex items-center gap-4">
+                          {/* Main Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-sm font-semibold text-gray-900">
+                                {alert.alert?.name || 'Alert Event'}
+                              </h3>
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${getSeverityColor(alert.severity)}`}
+                              >
+                                {alert.severity}
+                              </span>
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  alert.status === 'active'
+                                    ? 'bg-orange-100 text-orange-700'
+                                    : 'bg-green-100 text-green-700'
+                                }`}
+                              >
+                                {alert.status === 'active' ? '● Active' : '✓ Resolved'}
                               </span>
                             </div>
-                          )}
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium">Value:</span>
-                            <span>{alert.value}</span>
+                            <p className="text-sm text-gray-600 mb-1">{alert.message}</p>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <ClockIcon className="h-3.5 w-3.5" />
-                            <span>{formatTimeAgo(alert.created_at)}</span>
-                          </div>
-                          {alert.status === 'resolved' && alert.resolved_at && (
-                            <div className="flex items-center gap-1 text-green-600">
-                              <CheckCircleIcon className="h-3.5 w-3.5" />
-                              <span>Resolved {formatTimeAgo(alert.resolved_at)}</span>
+
+                          {/* Metadata - Horizontal */}
+                          <div className="flex items-center gap-4 text-xs text-gray-600 shrink-0">
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">Truck:</span>
+                              <span className="text-gray-900">{alert.truck?.name || `#${alert.truck_id}`}</span>
                             </div>
-                          )}
+                            {alert.sensor && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Tire:</span>
+                                <span className="text-gray-900">{alert.sensor.tire_no}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">Value:</span>
+                              <span className="text-gray-900 font-mono">{alert.value}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <ClockIcon className="h-3.5 w-3.5" />
+                              <span className="text-gray-900">{formatTimeAgo(alert.created_at)}</span>
+                            </div>
+                            {alert.status === 'resolved' && alert.resolved_at && (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <CheckCircleIcon className="h-3.5 w-3.5" />
+                                <span>{formatTimeAgo(alert.resolved_at)}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Action Button */}
+                        {alert.status === 'active' && (
+                          <button
+                            onClick={() => openResolveDialog(alert)}
+                            disabled={isResolving}
+                            className="shrink-0 px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Resolve
+                          </button>
+                        )}
                       </div>
-                      {alert.status === 'active' && (
-                        <button
-                          onClick={() => handleResolveAlert(alert.id)}
-                          className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
-                        >
-                          Resolve
-                        </button>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -397,6 +680,32 @@ const Alerts = () => {
           )}
         </div>
       </div>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={showModal}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        showCancel={modalConfig.showCancel}
+        confirmText={modalConfig.type === 'warning' ? 'Yes, Resolve' : 'OK'}
+        cancelText="Cancel"
+        onConfirm={() => {
+          if (modalConfig.type === 'warning') {
+            if (modalConfig.title === 'Resolve All Alerts?') {
+              handleResolveAll();
+            } else {
+              handleResolveAlert();
+            }
+          } else {
+            setShowModal(false);
+          }
+        }}
+        onCancel={() => {
+          setShowModal(false);
+          setSelectedAlert(null);
+        }}
+      />
     </TailwindLayout>
   );
 };
