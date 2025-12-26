@@ -35,9 +35,19 @@ const managementClient = axios.create({
 // Request interceptor - Add JWT token to requests
 managementClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    // ALWAYS read fresh token from localStorage (no caching!)
+    // This ensures we get the latest token even after login/logout
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+    
+    console.log('🔑 [managementClient] Request interceptor - Token:', token?.substring(0, 30) + '...');
+    console.log('📍 [managementClient] Request URL:', config.url);
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('⚠️ [managementClient] No token found in localStorage!');
+      // Remove Authorization header if no token
+      delete config.headers.Authorization;
     }
     return config;
   },
@@ -49,6 +59,13 @@ managementClient.interceptors.request.use(
 // Response interceptor - Handle errors globally
 managementClient.interceptors.response.use(
   (response) => {
+    console.log('✅ [managementClient] Response received:', {
+      url: response.config?.url,
+      status: response.status,
+      hasData: !!response.data,
+      dataKeys: response.data ? Object.keys(response.data) : []
+    });
+    
     // Return the data directly if success
     if (response.data?.success !== false) {
       return response.data;
@@ -59,7 +76,9 @@ managementClient.interceptors.response.use(
     // Handle 401 Unauthorized - redirect to login
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken');
+      localStorage.removeItem('token');
       localStorage.removeItem('user');
+      console.log('🔒 Unauthorized - redirecting to login');
       window.location.href = '/login';
     }
 

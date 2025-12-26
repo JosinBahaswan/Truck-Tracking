@@ -80,7 +80,7 @@ export default function VehicleActivityChart({ data, loading }) {
               </linearGradient>
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" strokeOpacity={0.5} />
 
             <XAxis
               dataKey="month"
@@ -98,16 +98,18 @@ export default function VehicleActivityChart({ data, loading }) {
               style={{ fontSize: '12px', fill: '#6b7280' }}
             />
 
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(99, 102, 241, 0.1)', strokeWidth: 2 }} />
 
             <Area
               type="monotone"
               dataKey="hours"
               name="Operating Hours"
               stroke="#6366f1"
-              strokeWidth={2}
+              strokeWidth={3}
               fillOpacity={1}
               fill="url(#fillActivity)"
+              animationDuration={1000}
+              animationEasing="ease-in-out"
             />
           </AreaChart>
         </ResponsiveContainer>

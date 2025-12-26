@@ -1,11 +1,12 @@
 // src/components/common/TruckImage.jsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 /**
  * TruckImage - reusable truck photo with sensible defaults
  *
  * Props:
- * - src: optional custom URL
+ * - id: truck ID to fetch image from backend (optional)
+ * - src: optional custom URL (overrides id)
  * - width: number (default 160)
  * - height: number (default 100)
  * - alt: string (default 'Truck photo')
@@ -17,16 +18,65 @@ import React from 'react';
  */
 
 export default function TruckImage({
+  id,
   src,
   width = 160,
   height = 100,
   alt = 'Truck photo',
   className = '',
 }) {
-  // Prefer provided src; otherwise use a simple placeholder
-  // placehold.co is fast and simple; picsum alternative shown below if needed:
+  const [imageSrc, setImageSrc] = useState(null);
   const placeholder = `https://placehold.co/${width}x${height}?text=TRUCK`;
-  const finalSrc = src || placeholder;
+
+  useEffect(() => {
+    // If src is provided directly, use it
+    if (src) {
+      setImageSrc(src);
+      return;
+    }
+
+    // If id is provided, fetch truck data from backend
+    if (id) {
+      const fetchTruckImage = async () => {
+        try {
+          const API_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:3001';
+          const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+          
+          const response = await fetch(`${API_URL}/api/trucks/${id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const truck = data.data?.truck || data.truck || data.data || data;
+            
+            if (truck.image) {
+              // Image path is relative, prepend API_URL
+              const fullImageUrl = `${API_URL}${truck.image}`;
+              setImageSrc(fullImageUrl);
+            } else {
+              setImageSrc(placeholder);
+            }
+          } else {
+            console.error(`❌ TruckImage ID ${id} - Fetch failed:`, response.status);
+            setImageSrc(placeholder);
+          }
+        } catch (error) {
+          console.error('Failed to fetch truck image:', error);
+          setImageSrc(placeholder);
+        }
+      };
+
+      fetchTruckImage();
+    } else {
+      setImageSrc(placeholder);
+    }
+  }, [id, src, placeholder]);
+
+  const finalSrc = imageSrc || placeholder;
 
   return (
     <img

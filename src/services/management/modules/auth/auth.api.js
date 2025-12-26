@@ -15,22 +15,55 @@ export const authApi = {
   login: async (credentials) => {
     console.log('🔐 Attempting login...', { username: credentials.username });
 
+    // Log old token before clearing
+    const oldToken = localStorage.getItem('authToken');
+    console.log('🗑️ Old token (first 30):', oldToken?.substring(0, 30) || 'No old token');
+
+    // Clear ALL old tokens before login
+    localStorage.clear();
+    console.log('🧹 Cleared all localStorage before login');
+
     const response = await managementClient.post('/auth/login', credentials);
 
     console.log('📥 Login response:', response);
+    console.log('📥 Response.data:', response.data);
+    console.log('📥 Response.data.token:', response.data?.token?.substring(0, 30));
+    console.log('📥 Response.data.user:', response.data?.user);
 
     // Store token and user data
     if (response.data?.token) {
-      console.log('💾 Storing token and user data');
+      console.log('💾 Storing NEW token and user data (response.data.token)');
+      console.log('👤 User to store:', response.data.user);
+      console.log('👤 User ID:', response.data.user?.id);
+      
       localStorage.setItem('authToken', response.data.token);
+      localStorage.setItem('token', response.data.token); // Store in both keys
       localStorage.setItem('user', JSON.stringify(response.data.user));
+      
+      console.log('✅ NEW Token stored (first 30):', response.data.token.substring(0, 30));
+      console.log('✅ Verify stored token:', localStorage.getItem('authToken')?.substring(0, 30));
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new Event('loginSuccess'));
+      console.log('📢 loginSuccess event dispatched');
     } else if (response.token) {
       // Handle case where token is at root level
-      console.log('💾 Storing token and user data (root level)');
+      console.log('💾 Storing NEW token and user data (response.token - root level)');
+      console.log('👤 User to store:', response.user || response.data?.user);
+      
       localStorage.setItem('authToken', response.token);
+      localStorage.setItem('token', response.token); // Store in both keys
       localStorage.setItem('user', JSON.stringify(response.user || response.data?.user));
+      
+      console.log('✅ NEW Token stored (first 30):', response.token.substring(0, 30));
+      console.log('✅ Verify stored token:', localStorage.getItem('authToken')?.substring(0, 30));
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new Event('loginSuccess'));
+      console.log('📢 loginSuccess event dispatched');
     } else {
       console.warn('⚠️ No token found in response');
+      console.warn('⚠️ Full response structure:', JSON.stringify(response, null, 2));
     }
 
     return response;
@@ -46,9 +79,12 @@ export const authApi = {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Clear local storage regardless of API response
+      // Clear ALL tokens and user data
       localStorage.removeItem('authToken');
+      localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.clear(); // Clear everything to be safe
+      console.log('🧹 All auth data cleared');
     }
   },
 

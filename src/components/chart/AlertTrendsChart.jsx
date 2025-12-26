@@ -65,7 +65,7 @@ export default function AlertTrendsChart({ data, loading }) {
       <div className="p-6">
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={data} margin={{ left: 12, right: 12, top: 10, bottom: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" strokeOpacity={0.5} />
             <XAxis
               dataKey="day"
               tickLine={false}
@@ -79,11 +79,32 @@ export default function AlertTrendsChart({ data, loading }) {
               tickMargin={8}
               style={{ fontSize: '12px', fill: '#6b7280' }}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0, 0, 0, 0.03)' }} />
             <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
-            <Bar dataKey="critical" fill="#ef4444" name="Critical" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="warning" fill="#f59e0b" name="Warning" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="info" fill="#3b82f6" name="Info" radius={[4, 4, 0, 0]} />
+            <Bar 
+              dataKey="critical" 
+              fill="#ef4444" 
+              name="Critical" 
+              radius={[8, 8, 0, 0]}
+              animationDuration={800}
+              animationEasing="ease-in-out"
+            />
+            <Bar 
+              dataKey="warning" 
+              fill="#f59e0b" 
+              name="Warning" 
+              radius={[8, 8, 0, 0]}
+              animationDuration={800}
+              animationEasing="ease-in-out"
+            />
+            <Bar 
+              dataKey="info" 
+              fill="#3b82f6" 
+              name="Info" 
+              radius={[8, 8, 0, 0]}
+              animationDuration={800}
+              animationEasing="ease-in-out"
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

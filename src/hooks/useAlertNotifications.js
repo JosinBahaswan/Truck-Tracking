@@ -6,7 +6,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { alertEventsAPI } from '../services/alertEvents.api';
 
-const POLL_INTERVAL = 1000; // 30 seconds
+const POLL_INTERVAL = 30000; // 30 seconds
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 5000; // 5 seconds
 
 export const useAlertNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -14,14 +16,26 @@ export const useAlertNotifications = () => {
   const [loading, setLoading] = useState(true);
   const previousAlertsRef = useRef(new Map());
   const pollingTimeoutRef = useRef(null);
+  const retryCountRef = useRef(0);
+  const isPollingRef = useRef(false);
 
   /**
    * Fetch active alerts and detect new ones
    */
   const fetchActiveAlerts = useCallback(async () => {
+    // Prevent concurrent calls
+    if (isPollingRef.current) {
+      console.log('⏭️ Skipping fetch - already in progress');
+      return;
+    }
+
     try {
+      isPollingRef.current = true;
       console.log('🔔 Fetching active alerts for notifications...');
       const response = await alertEventsAPI.getActiveAlerts();
+      
+      // Reset retry count on success
+      retryCountRef.current = 0;
       
       console.log('📥 Alert response:', response);
       
@@ -112,9 +126,23 @@ export const useAlertNotifications = () => {
       }
     } catch (error) {
       console.error('❌ Error fetching active alerts:', error.message);
+      
+      // Increment retry count
+      retryCountRef.current++;
+      
+      // If max retries reached, wait longer before next attempt
+      if (retryCountRef.current >= MAX_RETRIES) {
+        console.warn(`⚠️ Max retries (${MAX_RETRIES}) reached. Waiting ${RETRY_DELAY}ms before next attempt.`);
+        // Reset after a delay
+        setTimeout(() => {
+          retryCountRef.current = 0;
+        }, RETRY_DELAY);
+      }
+      
       // Don't throw error, just log it to allow continuous polling
     } finally {
       setLoading(false);
+      isPollingRef.current = false;
     }
   }, []);
 
@@ -125,10 +153,13 @@ export const useAlertNotifications = () => {
     fetchActiveAlerts();
 
     const poll = () => {
+      // Use longer interval if we've had errors
+      const delay = retryCountRef.current >= MAX_RETRIES ? RETRY_DELAY : POLL_INTERVAL;
+      
       pollingTimeoutRef.current = setTimeout(() => {
         fetchActiveAlerts();
         poll();
-      }, POLL_INTERVAL);
+      }, delay);
     };
 
     poll();

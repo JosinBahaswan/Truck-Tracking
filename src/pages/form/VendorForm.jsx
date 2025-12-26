@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import TailwindLayout from '../../components/layout/TailwindLayout.jsx';
 import { vendorsApi } from 'services/management';
+import AlertModal from '../../components/common/AlertModal.jsx';
 
 function Input({ label, icon, ...props }) {
   return (
@@ -47,6 +48,7 @@ export default function VendorForm() {
   });
   const [loading, setLoading] = React.useState(!isNew);
   const [saving, setSaving] = React.useState(false);
+  const [alertModal, setAlertModal] = React.useState({ isOpen: false, type: 'info', title: '', message: '' });
 
   useEffect(() => {
     if (isNew) return;
@@ -82,7 +84,7 @@ export default function VendorForm() {
 
       // Validation
       if (!form.name_vendor) {
-        alert('Vendor Name is required!');
+        setAlertModal({ isOpen: true, type: 'warning', title: 'Validation Error', message: 'Vendor Name is required!' });
         setSaving(false);
         return;
       }
@@ -108,19 +110,21 @@ export default function VendorForm() {
         console.log('🔄 Updating vendor:', id, vendorData);
         response = await vendorsApi.update(id, vendorData);
         console.log('✅ Vendor updated successfully:', response);
-        alert('Vendor updated successfully!');
+        setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Vendor updated successfully!' });
       } else {
         // CREATE new vendor
         console.log('➕ Creating new vendor', vendorData);
         response = await vendorsApi.create(vendorData);
         console.log('✅ Vendor created successfully:', response);
-        alert('Vendor created successfully!');
+        setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Vendor created successfully!' });
       }
 
-      navigate('/vendors');
+      setTimeout(() => {
+        navigate('/vendors');
+      }, 1500);
     } catch (error) {
       console.error('❌ Failed to save vendor:', error);
-      alert(`Failed to save vendor: ${error.message || 'Unknown error'}`);
+      setAlertModal({ isOpen: true, type: 'error', title: 'Error', message: `Failed to save vendor: ${error.message || 'Unknown error'}` });
     } finally {
       setSaving(false);
     }
@@ -392,6 +396,14 @@ export default function VendorForm() {
           </div>
         )}
       </div>
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onConfirm={() => setAlertModal({ ...alertModal, isOpen: false })}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+        confirmText="OK"
+      />
     </TailwindLayout>
   );
 }

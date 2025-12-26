@@ -1,5 +1,5 @@
 import React from 'react';
-import { PieChart, Pie, Cell, Label, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Label, Tooltip, ResponsiveContainer, Sector } from 'recharts';
 import { TrendingUp, AlertTriangle } from 'lucide-react';
 
 const CustomTooltip = ({ active, payload }) => {
@@ -16,11 +16,42 @@ const CustomTooltip = ({ active, payload }) => {
   return null;
 };
 
+const renderActiveShape = (props) => {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  
+  return (
+    <g>
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius + 10}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        stroke="none"
+      />
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={outerRadius + 12}
+        outerRadius={outerRadius + 25}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        stroke="none"
+        opacity={0.8}
+      />
+    </g>
+  );
+};
+
 const TirePressureChart = ({ data, loading }) => {
   console.log('🟢 TirePressureChart - Received data:', data, 'Loading:', loading);
   
   // Force component update when data changes
   const [chartKey, setChartKey] = React.useState(0);
+  const [activeIndex, setActiveIndex] = React.useState(0);
   
   React.useEffect(() => {
     if (data && Array.isArray(data) && data.length > 0) {
@@ -104,54 +135,95 @@ const TirePressureChart = ({ data, loading }) => {
 
   console.log('📊 TirePressureChart - Total:', totalTires, 'Needs attention:', needsAttention);
   console.log('✅ TirePressureChart - Rendering chart');
+
+  const activeData = chartData[activeIndex];
   
   return (
     <div className="flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm" id="tire-pressure-chart-container">
-      <div className="items-center pb-0 p-6">
-        <h3 className="font-semibold text-xl tracking-tight">Tire Pressure Status</h3>
-        <p className="text-sm text-gray-500 mt-1">Real-time TPMS monitoring</p>
+      <div className="flex flex-row items-start space-y-0 pb-0 p-6">
+        <div className="grid gap-1">
+          <h3 className="font-semibold leading-none tracking-tight">Tire Pressure Status</h3>
+          <p className="text-xs text-gray-500 mt-1">Real-time TPMS monitoring</p>
+        </div>
+        <select
+          className="ml-auto h-7 w-[130px] rounded-lg border border-gray-300 pl-2.5 pr-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none bg-white cursor-pointer"
+          value={activeIndex}
+          onChange={(e) => setActiveIndex(Number(e.target.value))}
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right 0.5rem center',
+            backgroundSize: '12px',
+          }}
+        >
+          {chartData.map((item, index) => (
+            <option key={index} value={index}>
+              ● {item.name}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <div className="flex-1 pb-0 p-6" id="tire-chart-wrapper">
-        <ResponsiveContainer width="100%" height={250} id="tire-responsive-container" key={chartKey}>
-          <PieChart id="tire-pressure-pie-chart" key={`tire-pie-${chartKey}`}>
-            <Tooltip content={<CustomTooltip />} cursor={false} />
-            <Pie
-              data={chartData}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={60}
-              outerRadius={80}
-              strokeWidth={5}
-              paddingAngle={2}
-              id="tire-pie-element"
-            >
-              {chartData.map((entry, index) => (
-                <Cell key={`tire-cell-${index}`} fill={entry.fill} />
-              ))}
-              <Label
-                content={({ viewBox }) => {
-                  if (viewBox && 'cx' in viewBox && 'cy' in viewBox) {
-                    return (
-                      <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
-                        <tspan
-                          x={viewBox.cx}
-                          y={viewBox.cy}
-                          className="fill-gray-900 text-3xl font-bold"
-                        >
-                          {totalTires.toLocaleString()}
-                        </tspan>
-                        <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 24} className="fill-gray-500">
-                          Total Tires
-                        </tspan>
-                      </text>
-                    );
-                  }
-                }}
-              />
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
+      <div className="flex flex-1 justify-center pb-0 p-6" id="tire-chart-wrapper">
+        <div className="mx-auto aspect-square w-full max-w-[300px]">
+          <ResponsiveContainer width="100%" height="100%" id="tire-responsive-container" key={chartKey}>
+            <PieChart id="tire-pressure-pie-chart" key={`tire-pie-${chartKey}`} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <defs>
+                <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.1" />
+                </filter>
+              </defs>
+              <Tooltip content={<CustomTooltip />} cursor={false} />
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={60}
+                outerRadius={80}
+                strokeWidth={0}
+                paddingAngle={0}
+                id="tire-pie-element"
+                activeIndex={activeIndex}
+                activeShape={renderActiveShape}
+                onMouseEnter={(_, index) => setActiveIndex(index)}
+                animationBegin={0}
+                animationDuration={800}
+                animationEasing="ease-in-out"
+              >
+                {chartData.map((entry, index) => (
+                  <Cell 
+                    key={`tire-cell-${index}`} 
+                    fill={entry.fill}
+                    style={{
+                      filter: activeIndex === index ? 'url(#shadow)' : 'none',
+                      outline: 'none',
+                    }}
+                  />
+                ))}
+                <Label
+                  content={({ viewBox }) => {
+                    if (viewBox && 'cx' in viewBox && 'cy' in viewBox) {
+                      return (
+                        <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                          <tspan
+                            x={viewBox.cx}
+                            y={viewBox.cy}
+                            className="fill-gray-900 text-3xl font-bold"
+                          >
+                            {activeData?.value.toLocaleString()}
+                          </tspan>
+                          <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 24} className="fill-gray-500">
+                            {activeData?.name}
+                          </tspan>
+                        </text>
+                      );
+                    }
+                  }}
+                />
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       <div className="flex-col gap-2 text-sm p-6 pt-2">

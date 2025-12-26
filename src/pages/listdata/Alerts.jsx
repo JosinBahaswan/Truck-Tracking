@@ -395,7 +395,7 @@ const Alerts = () => {
                     {!filterSeverity && <span>All Severities</span>}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56">
+                <DropdownMenuContent side="right" align="start" className="w-56 z-[9999]">
                   <DropdownMenuItem
                     onClick={() => {
                       setFilterSeverity('');
@@ -459,7 +459,7 @@ const Alerts = () => {
                         : 'All Status'}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48">
+                <DropdownMenuContent side="right" align="start" className="w-48 z-[9999]">
                   <DropdownMenuItem
                     onClick={() => {
                       setFilterStatus('');
@@ -500,7 +500,7 @@ const Alerts = () => {
                           : 'Semua Periode'}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48">
+                <DropdownMenuContent side="right" align="start" className="w-48 z-[9999]">
                   <DropdownMenuItem
                     onClick={() => {
                       setFilterPeriod('');

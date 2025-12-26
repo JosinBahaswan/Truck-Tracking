@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'; // Impo
 import { TruckIcon, ClockIcon, FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline'; // Import ikon-ikon UI
 import BaseTrackingMap from './BaseTrackingMap'; // Import komponen peta dasar
 import TirePressureDisplay from '../../components/dashboard/TirePressureDisplay'; // Import komponen display tekanan ban
+import TruckImage from '../../components/common/TruckImage.jsx'; // Import komponen truck image
 import { trackingAPI } from 'services/tracking'; // BE1 Tracking API
 
 // WebSocket URL from environment variable with fallback
@@ -1286,8 +1287,13 @@ const LiveTrackingMapNew = () => {
               <div className="mb-4 overflow-hidden rounded-lg border border-gray-100">
                 {' '}
                 {/* Container gambar banner */}
-                <img src="/icon2.png" alt="Truck" className="h-32 w-full object-cover" />{' '}
-                {/* Gambar truk */}
+                <TruckImage 
+                  id={selectedVehicle.id} 
+                  width={380} 
+                  height={200}
+                  alt={selectedVehicle.truckName || selectedVehicle.plateNumber || 'Truck'}
+                  className="h-48 w-full object-cover"
+                />
               </div>
               {/* Header */}
               <div className="flex items-start justify-between">

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import TailwindLayout from '../../components/layout/TailwindLayout.jsx';
+import AlertModal from '../../components/common/AlertModal.jsx';
 import { trucksApi } from 'services/management';
 import { Button } from '../../components/common/Button.jsx';
 import {
@@ -13,6 +14,7 @@ import {
 export default function FuelMonitoring() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, type: 'info', title: '', message: '' });
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -452,7 +454,7 @@ export default function FuelMonitoring() {
                 <Button
                   onClick={() => {
                     if (filteredData.length === 0) {
-                      alert('No data to export');
+                      setAlertModal({ isOpen: true, type: 'warning', title: 'No Data', message: 'No data to export' });
                       return;
                     }
                     const csvContent = [
@@ -858,6 +860,16 @@ export default function FuelMonitoring() {
           </div>
         )}
       </div>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+        onConfirm={() => setAlertModal({ ...alertModal, isOpen: false })}
+        confirmText="OK"
+      />
     </TailwindLayout>
   );
 }

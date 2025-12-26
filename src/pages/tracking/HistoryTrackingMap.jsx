@@ -6,6 +6,7 @@ import { PlayIcon, PauseIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import BaseTrackingMap from './BaseTrackingMap';
 import { trackingAPI, historyAPI } from 'services/tracking'; // BE1 Tracking & History API
 import TirePressureDisplay from '../../components/dashboard/TirePressureDisplay';
+import DatePicker from '../../components/common/DatePicker';
 
 const HistoryTrackingMap = () => {
   // Test mode disabled; use only backend data
@@ -957,7 +958,7 @@ const HistoryTrackingMap = () => {
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden space-y-4 pr-1">
+      <div className="flex-1 space-y-6 pr-1 z-[9999]">
         {/* Selected Vehicle Info */}
         {selectedVehicle && (
           <div className="px-3 py-2 rounded-lg border bg-blue-50 border-blue-300">
@@ -1010,13 +1011,20 @@ const HistoryTrackingMap = () => {
           </h5>
           <div className="space-y-2.5">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Tanggal</label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent bg-white"
+              <DatePicker
+                label="Tanggal"
+                value={selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date()}
+                onChange={(date) => {
+                  if (date) {
+                    const yyyy = date.getFullYear();
+                    const mm = String(date.getMonth() + 1).padStart(2, '0');
+                    const dd = String(date.getDate()).padStart(2, '0');
+                    setSelectedDate(`${yyyy}-${mm}-${dd}`);
+                  }
+                }}
+                maxDate={new Date()}
                 disabled={loading}
+                className="w-full"
               />
             </div>
 
@@ -1101,23 +1109,31 @@ const HistoryTrackingMap = () => {
         {/* Current Point Alerts Section - Only show if alert exists at current point */}
         {selectedVehicle && currentPlaybackTireData && (() => {
           const alerts = [];
+          const MAX_ALERTS_DISPLAY = 3; // Limit displayed alerts
+          
           currentPlaybackTireData.forEach(tire => {
             const temp = tire.tempValue;
-            const pressure = tire.tirepValue;
+            const pressure = tire.tirepValue; // Already in PSI
+            
+            // ✅ NEW THRESHOLDS (Dec 2025 Update) - Same as TirePressureDisplay
+            // Temperature: Normal <85°C, Warning ≥85°C, Critical ≥100°C
+            // Pressure: Normal 100-119 PSI, Critical Low <90 PSI, Critical High ≥120 PSI
             
             // Check temperature alerts
-            if (temp > 90) {
-              alerts.push({ tire: tire.tireNo, type: 'critical', message: 'Temperature Critical', value: `${temp.toFixed(1)}°C` });
-            } else if (temp > 80) {
-              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Temperature Warning', value: `${temp.toFixed(1)}°C` });
+            if (temp >= 100) {
+              alerts.push({ tire: tire.tireNo, type: 'critical', message: 'Temperature Critical', value: `${temp.toFixed(1)}°C`, priority: 3 });
+            } else if (temp >= 85) {
+              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Temperature Warning', value: `${temp.toFixed(1)}°C`, priority: 2 });
             }
             
-            // Check pressure alerts (convert kPa to PSI: 1 kPa = 0.145 PSI)
-            const psi = pressure * 0.145;
-            if (psi < 85) {
-              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Pressure Low', value: `${psi.toFixed(1)} PSI` });
-            } else if (psi > 110) {
-              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Pressure High', value: `${psi.toFixed(1)} PSI` });
+            // Check pressure alerts (pressure is already in PSI, no conversion needed)
+            const psi = pressure; // No conversion - backend already sends PSI
+            if (psi < 90) {
+              alerts.push({ tire: tire.tireNo, type: 'critical', message: 'Pressure Critical Low', value: `${psi.toFixed(1)} PSI`, priority: 3 });
+            } else if (psi < 100) {
+              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Pressure Low', value: `${psi.toFixed(1)} PSI`, priority: 2 });
+            } else if (psi >= 120) {
+              alerts.push({ tire: tire.tireNo, type: 'critical', message: 'Pressure Critical High', value: `${psi.toFixed(1)} PSI`, priority: 3 });
             }
           });
           
@@ -1223,35 +1239,35 @@ const HistoryTrackingMap = () => {
     </div>
   );
 
-  const additionalControls = (
-    <div className="border-l border-gray-300 pl-3 flex items-center gap-2">
-      <span className="text-xs text-gray-600">Routes:</span>
-      <button
-        onClick={() => {
-          vehicles.forEach((vehicle) => {
-            if (!routeVisible[vehicle.id]) {
-              // toggleRouteVisibility(vehicle.id);
-            }
-          });
-        }}
-        className="px-2 py-1 text-xs bg-green-100 text-green-700 hover:bg-green-200 rounded transition-colors"
-      >
-        Show All
-      </button>
-      <button
-        onClick={() => {
-          vehicles.forEach((vehicle) => {
-            if (routeVisible[vehicle.id]) {
-              // toggleRouteVisibility(vehicle.id);
-            }
-          });
-        }}
-        className="px-2 py-1 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded transition-colors"
-      >
-        Hide All
-      </button>
-    </div>
-  );
+  // const additionalControls = (
+  //   <div className="border-l border-gray-300 pl-3 flex items-center gap-2">
+  //     <span className="text-xs text-gray-600">Routes:</span>
+  //     <button
+  //       onClick={() => {
+  //         vehicles.forEach((vehicle) => {
+  //           if (!routeVisible[vehicle.id]) {
+  //             // toggleRouteVisibility(vehicle.id);
+  //           }
+  //         });
+  //       }}
+  //       className="px-2 py-1 text-xs bg-green-100 text-green-700 hover:bg-green-200 rounded transition-colors"
+  //     >
+  //       Show All
+  //     </button>
+  //     <button
+  //       onClick={() => {
+  //         vehicles.forEach((vehicle) => {
+  //           if (routeVisible[vehicle.id]) {
+  //             // toggleRouteVisibility(vehicle.id);
+  //           }
+  //         });
+  //       }}
+  //       className="px-2 py-1 text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 rounded transition-colors"
+  //     >
+  //       Hide All
+  //     </button>
+  //   </div>
+  // );
 
   // Playback functions
   const hasHistory = (vehicleId) => {
@@ -1578,7 +1594,7 @@ const HistoryTrackingMap = () => {
     <BaseTrackingMap
       onMapReady={onMapReady}
       sidebarContent={sidebarContent}
-      additionalControls={additionalControls}
+      // additionalControls={additionalControls}
       bottomControls={bottomControls}
       showCompass={true}
       showMapStyleToggle={true}

@@ -66,7 +66,7 @@ export default function ChartAreaGradient() {
               </linearGradient>
             </defs>
             
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" strokeOpacity={0.5} />
             
             <XAxis
               dataKey="month"
@@ -79,28 +79,32 @@ export default function ChartAreaGradient() {
             
             <YAxis hide />
             
-            <Tooltip content={<CustomTooltip />} cursor={false} />
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(99, 102, 241, 0.1)', strokeWidth: 2 }} />
             
             <Area
               dataKey="mobile"
-              type="natural"
+              type="monotone"
               fill="url(#fillMobile)"
-              fillOpacity={0.4}
+              fillOpacity={1}
               stroke="#10b981"
-              strokeWidth={2}
+              strokeWidth={3}
               stackId="a"
               name="Mobile"
+              animationDuration={1000}
+              animationEasing="ease-in-out"
             />
             
             <Area
               dataKey="desktop"
-              type="natural"
+              type="monotone"
               fill="url(#fillDesktop)"
-              fillOpacity={0.4}
+              fillOpacity={1}
               stroke="#2563eb"
-              strokeWidth={2}
+              strokeWidth={3}
               stackId="a"
               name="Desktop"
+              animationDuration={1000}
+              animationEasing="ease-in-out"
             />
           </AreaChart>
         </ResponsiveContainer>

@@ -694,7 +694,13 @@ export default function VendorsList() {
                 <button
                   onClick={() => {
                     if (filtered.length === 0) {
-                      alert('No data to export');
+                      setAlert({
+                        isOpen: true,
+                        type: 'info',
+                        title: 'No Data',
+                        message: 'No data to export',
+                        showCancel: false,
+                      });
                       return;
                     }
                     const csvContent = [

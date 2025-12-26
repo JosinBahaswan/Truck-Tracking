@@ -30,7 +30,7 @@ function DriverActionMenu({ driver, onEdit, onDelete }) {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56" align="end">
-          <DropdownMenuItem onClick={() => onEdit(driversApi.id)} className="gap-3">
+          <DropdownMenuItem onClick={() => onEdit(driver.id)} className="gap-3">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
@@ -637,7 +637,14 @@ export default function DriversList() {
                 <button
                   onClick={() => {
                     if (filtered.length === 0) {
-                      alert('No data to export');
+                      setAlert({
+                        isOpen: true,
+                        type: 'warning',
+                        title: 'No Data',
+                        message: 'No data to export',
+                        onConfirm: () => setAlert({ ...alert, isOpen: false }),
+                        showCancel: false,
+                      });
                       return;
                     }
                     const csvContent = [

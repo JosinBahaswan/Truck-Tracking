@@ -1,17 +1,16 @@
 import React from 'react';
 import { Pie, PieChart, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp } from 'lucide-react';
 
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
-        <p className="font-semibold text-gray-900">{payload[0].name}</p>
-        <p className="text-sm text-gray-600">
-          Vehicles: <span className="font-semibold">{payload[0].value}</span>
+      <div className="bg-gray-900 text-white rounded-lg shadow-xl p-3 border-0">
+        <p className="font-semibold text-base mb-1">{payload[0].name}</p>
+        <p className="text-sm text-gray-200">
+          Vehicles: <span className="font-bold text-white ml-1">{payload[0].value}</span>
         </p>
-        <p className="text-xs text-gray-500">
-          {payload[0].payload.percentage}%
+        <p className="text-sm text-gray-300">
+          {payload[0].payload.percentage}% of total fleet
         </p>
       </div>
     );
@@ -20,7 +19,7 @@ const CustomTooltip = ({ active, payload }) => {
 };
 
 const renderLabel = (entry) => {
-  return `${entry.name}: ${entry.value}`;
+  return `${entry.percentage}%`;
 };
 
 const FleetStatusChart = ({ data, loading }) => {
@@ -38,13 +37,13 @@ const FleetStatusChart = ({ data, loading }) => {
   // Show loading skeleton first
   if (loading) {
     return (
-      <div className="flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="items-center pb-0 p-6">
-          <div className="h-6 bg-gray-200 rounded w-2/3 animate-pulse mb-2"></div>
+      <div className="flex flex-col bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <div className="mb-4">
+          <div className="h-7 bg-gray-200 rounded w-2/3 animate-pulse mb-2"></div>
           <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
         </div>
-        <div className="flex-1 pb-0 p-6">
-          <div className="h-64 bg-gray-200 rounded animate-pulse"></div>
+        <div className="flex-1">
+          <div className="h-64 bg-gray-200 rounded-xl animate-pulse"></div>
         </div>
       </div>
     );
@@ -54,10 +53,13 @@ const FleetStatusChart = ({ data, loading }) => {
   if (!data || !Array.isArray(data) || data.length === 0) {
     console.warn('⚠️ FleetStatusChart - Invalid or empty data');
     return (
-      <div className="flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="flex flex-col items-center space-y-1.5 p-6">
-          <h3 className="font-semibold text-xl tracking-tight">Fleet Status Distribution</h3>
-          <p className="text-sm text-gray-500">No data available</p>
+      <div className="flex flex-col bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <div className="mb-4">
+          <h3 className="font-semibold text-xl text-gray-900">Fleet Status Distribution</h3>
+          <p className="text-sm text-gray-500 mt-1">Current vehicle status breakdown</p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-gray-400">No data available</p>
         </div>
       </div>
     );
@@ -72,7 +74,7 @@ const FleetStatusChart = ({ data, loading }) => {
 
   console.log('📈 FleetStatusChart - Processed chartData:', chartData, 'Total:', total);
 
-  // Color mapping
+  // Color mapping dengan gradasi yang lebih modern
   const COLORS = {
     Active: '#10b981',
     Maintenance: '#f59e0b',
@@ -80,27 +82,35 @@ const FleetStatusChart = ({ data, loading }) => {
     Idle: '#6b7280',
   };
 
-  const activeVehicles = chartData.find((d) => d.name === 'Active')?.value || 0;
-  const changePercentage = 2.5; // This could come from API comparing with previous period
-
   return (
-    <div className="flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm" id="fleet-status-chart-container">
-      <div className="flex flex-col items-center space-y-1.5 p-6 pb-0">
-        <h3 className="font-semibold text-xl tracking-tight">Fleet Status Distribution</h3>
-        <p className="text-sm text-gray-500">Current vehicle status breakdown</p>
+    <div className="flex flex-col bg-white rounded-xl border border-gray-100 shadow-sm p-6" id="fleet-status-chart-container">
+      {/* Header */}
+      <div className="mb-6">
+        <h3 className="font-semibold text-xl text-gray-900">Fleet Status Distribution</h3>
+        <p className="text-sm text-gray-500 mt-1">Current vehicle status breakdown</p>
       </div>
 
-      <div className="flex-1 p-6 pb-0" id="fleet-chart-wrapper">
-        <ResponsiveContainer width="100%" height={280} id="fleet-responsive-container" key={chartKey}>
+      {/* Chart Container */}
+      <div className="flex-1" id="fleet-chart-wrapper">
+        <ResponsiveContainer width="100%" height={300} id="fleet-responsive-container" key={chartKey}>
           <PieChart id="fleet-status-pie-chart" key={`fleet-pie-${chartKey}`}>
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip 
+              content={<CustomTooltip />}
+              cursor={{ fill: 'transparent' }}
+            />
             <Legend
+              layout="horizontal"
               verticalAlign="bottom"
-              height={36}
+              align="center"
+              wrapperStyle={{ 
+                paddingTop: '20px',
+                paddingBottom: '10px'
+              }}
               iconType="circle"
-              formatter={(value, entry) => (
-                <span className="text-sm text-gray-700">
-                  {value} ({entry.payload.value})
+              iconSize={10}
+              formatter={(value) => (
+                <span className="text-sm text-gray-700 font-medium">
+                  {value}
                 </span>
               )}
             />
@@ -110,26 +120,43 @@ const FleetStatusChart = ({ data, loading }) => {
               nameKey="name"
               cx="50%"
               cy="50%"
-              outerRadius={80}
+              innerRadius={60}
+              outerRadius={90}
+              paddingAngle={2}
+              cornerRadius={8}
               label={renderLabel}
               labelLine={false}
+              strokeWidth={0}
               id="fleet-pie-element"
+              animationBegin={300}
+              animationDuration={800}
+              animationEasing="ease-out"
             >
               {chartData.map((entry, index) => (
-                <Cell key={`fleet-cell-${index}`} fill={COLORS[entry.name] || '#8884d8'} />
+                <Cell 
+                  key={`fleet-cell-${index}`} 
+                  fill={COLORS[entry.name] || '#8884d8'}
+                  strokeWidth={2}
+                  stroke="white"
+                  opacity={0.9}
+                />
               ))}
             </Pie>
           </PieChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="flex flex-col gap-2 text-sm p-6 pt-4">
-        <div className="flex items-center gap-2 leading-none font-medium text-gray-900">
-          Fleet utilization up by {changePercentage}% this week{' '}
-          <TrendingUp className="h-4 w-4 text-green-600" />
-        </div>
-        <div className="text-gray-500 leading-none">
-          {activeVehicles} vehicles currently active out of {total} total
+      {/* Summary Info - Minimal */}
+      <div className="mt-6 pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            <span className="font-semibold text-gray-900">{total}</span> total vehicles
+          </div>
+          <div className="text-sm text-gray-600">
+            <span className="font-semibold text-green-600">
+              {chartData.find((d) => d.name === 'Active')?.percentage || 0}%
+            </span> active
+          </div>
         </div>
       </div>
     </div>

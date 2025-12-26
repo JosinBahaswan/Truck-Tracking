@@ -853,7 +853,14 @@ const Sensors = () => {
                   <button
                     onClick={() => {
                       if (filtered.length === 0) {
-                        alert('No data to export');
+                        setAlert({
+                          isOpen: true,
+                          type: 'warning',
+                          title: 'No Data',
+                          message: 'No data to export',
+                          onConfirm: () => setAlert({ ...alert, isOpen: false }),
+                          showCancel: false,
+                        });
                         return;
                       }
                       const csvContent = [

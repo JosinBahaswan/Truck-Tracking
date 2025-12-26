@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import TailwindLayout from '../../components/layout/TailwindLayout.jsx';
+import AlertModal from '../../components/common/AlertModal.jsx';
 import DatePicker from '../../components/common/DatePicker.jsx';
 import { driversApi, vendorsApi } from 'services/management';
 
@@ -87,10 +88,11 @@ export default function DriverForm() {
     status: 'aktif', // 'aktif' or 'nonaktif'
   });
   const [vendors, setVendors] = React.useState([]);
-  const [loading, setLoading] = React.useState(isEdit);
+  const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [validationErrors, setValidationErrors] = React.useState([]);
+  const [alertModal, setAlertModal] = React.useState({ isOpen: false, type: 'info', title: '', message: '' });
 
   // Load driver data if editing and vendors
   React.useEffect(() => {
@@ -106,32 +108,60 @@ export default function DriverForm() {
         // Load driver data if editing
         if (isEdit && id && id !== 'undefined') {
           console.log('📡 Loading driver data from Backend 2 with ID:', id);
-          const res = await driversApi.getById(id);
-          console.log('✅ Driver response:', res);
+          try {
+            const res = await driversApi.getById(id);
+            console.log('✅ Driver response:', res);
 
-          // Handle different response formats
-          const driver = res?.data?.driver || res?.data || res;
+            // Handle different response formats
+            const driver = res?.data?.driver || res?.data || res;
 
-          if (driver) {
-            console.log('📝 Setting form data:', driver);
-            setForm({
-              name: driver.name || '',
-              phone: driver.phone || '',
-              email: driver.email || '',
-              license_number: driver.license_number || driver.licenseNumber || '',
-              license_type: driver.license_type || driver.licenseType || '',
-              license_expiry: driver.license_expiry || driver.licenseExpiry || '',
-              vendor_id: driver.vendor_id || driver.vendorId || '',
-              status: driver.status || 'aktif',
+            if (driver && driver.id) {
+              console.log('📝 Setting form data:', driver);
+              setForm({
+                name: driver.name || '',
+                phone: driver.phone || '',
+                email: driver.email || '',
+                license_number: driver.license_number || driver.licenseNumber || '',
+                license_type: driver.license_type || driver.licenseType || '',
+                license_expiry: driver.license_expiry || driver.licenseExpiry || '',
+                vendor_id: String(driver.vendor_id || driver.vendorId || ''),
+                status: driver.status || 'aktif',
+              });
+              console.log('✅ Form data set successfully');
+              console.log('📝 Driver Name:', driver.name);
+              console.log('📞 Phone:', driver.phone);
+              console.log('🏢 Vendor ID:', driver.vendor_id || driver.vendorId);
+            } else {
+              console.warn('⚠️ No driver data found in response');
+              setError('Driver data not found');
+              setAlertModal({ 
+                isOpen: true, 
+                type: 'error', 
+                title: 'Error', 
+                message: 'Driver data not found. Redirecting to drivers list.' 
+              });
+              setTimeout(() => navigate('/drivers'), 2000);
+            }
+          } catch (driverErr) {
+            console.error('❌ Failed to load driver data:', driverErr);
+            setError(driverErr.message || 'Failed to load driver data');
+            setAlertModal({ 
+              isOpen: true, 
+              type: 'error', 
+              title: 'Error', 
+              message: 'Failed to load driver data. Please try again.' 
             });
-          } else {
-            console.warn('⚠️ No driver data found in response');
-            setError('Driver data not found');
           }
         }
       } catch (err) {
         console.error('❌ Failed to load data:', err);
         setError(err.message || 'Failed to load data');
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'error', 
+          title: 'Error', 
+          message: 'Failed to load form data. Please check your connection.' 
+        });
       } finally {
         setLoading(false);
       }
@@ -149,7 +179,7 @@ export default function DriverForm() {
 
       // Basic frontend validation
       if (!form.name || !form.license_number) {
-        alert('Name and License Number are required fields!');
+        setAlertModal({ isOpen: true, type: 'error', title: 'Validation Error', message: 'Name and License Number are required fields!' });
         return;
       }
 
@@ -187,16 +217,16 @@ export default function DriverForm() {
 
         response = await driversApi.update(id, driverData);
         console.log('✅ Driver updated successfully:', response);
-        alert('Driver updated successfully!');
+        setAlertModal({ isOpen: true, type: 'success', title: 'Success!', message: 'Driver updated successfully!' });
+        setTimeout(() => navigate('/drivers'), 1500);
       } else {
         // CREATE new driver
         console.log('➕ Creating new driver', driverData);
         response = await driversApi.create(driverData);
         console.log('✅ Driver created successfully:', response);
-        alert('Driver created successfully!');
+        setAlertModal({ isOpen: true, type: 'success', title: 'Success!', message: 'Driver created successfully!' });
+        setTimeout(() => navigate('/drivers'), 1500);
       }
-
-      navigate('/drivers');
     } catch (err) {
       console.error('❌ Failed to save driver:', err);
 
@@ -204,11 +234,11 @@ export default function DriverForm() {
       if (err?.data?.errors && Array.isArray(err.data.errors)) {
         setValidationErrors(err.data.errors);
         const errorMessages = err.data.errors.map((e) => `${e.field}: ${e.message}`).join('\n');
-        alert(`Validation Error:\n${errorMessages}`);
+        setAlertModal({ isOpen: true, type: 'error', title: 'Validation Error', message: errorMessages });
       } else {
         const errorMsg = err.message || err?.data?.message || 'Unknown error';
         setError(errorMsg);
-        alert(`Failed to save driver: ${errorMsg}`);
+        setAlertModal({ isOpen: true, type: 'error', title: 'Failed', message: `Failed to save driver: ${errorMsg}` });
       }
     } finally {
       setSaving(false);
@@ -760,6 +790,16 @@ export default function DriverForm() {
         )}
       </div>
       {/* </div> */}
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+        onConfirm={() => setAlertModal({ ...alertModal, isOpen: false })}
+        confirmText="OK"
+      />
     </TailwindLayout>
   );
 }

@@ -22,10 +22,11 @@ export default function DatePicker({
   minDate,
   maxDate,
   disabled = false,
-  className = '',
+  className = '', // 'bottom' or 'top'
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(value || new Date());
+  const [calendarPosition, setCalendarPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef(null);
 
   // Close calendar when clicking outside
@@ -38,6 +39,15 @@ export default function DatePicker({
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      
+      // Calculate position for fixed calendar
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setCalendarPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX
+        });
+      }
     }
 
     return () => {
@@ -204,7 +214,10 @@ export default function DatePicker({
 
       {/* Calendar Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 bg-gray-900 rounded-lg shadow-2xl border border-gray-700 p-4 w-72">
+        <div 
+          className="fixed z-[9999] bg-gray-900 rounded-lg shadow-2xl border border-gray-700 p-4 w-72"
+          style={{ top: `${calendarPosition.top}px`, left: `${calendarPosition.left}px` }}
+        >
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <button

@@ -21,6 +21,7 @@ const BaseTrackingMap = ({
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [mapStyle, setMapStyle] = useState('satellite');
   const [loading, setLoading] = useState(true);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
   const miningBoundsRef = useRef(null);
   const initGuardRef = useRef(false);
 
@@ -277,14 +278,16 @@ const BaseTrackingMap = ({
     return () => clearTimeout(t);
   }, [map, sidebarVisible]);
 
-  // Invalidate map size on window resize
+  // Invalidate map size on window resize and update window width
   useEffect(() => {
-    if (!map) return;
     const onResize = () => {
-      try {
-        map.invalidateSize({ animate: false });
-      } catch (e) {
-        console.warn('invalidateSize (resize) failed:', e);
+      setWindowWidth(window.innerWidth);
+      if (map) {
+        try {
+          map.invalidateSize({ animate: false });
+        } catch (e) {
+          console.warn('invalidateSize (resize) failed:', e);
+        }
       }
     };
     window.addEventListener('resize', onResize);
@@ -319,7 +322,9 @@ const BaseTrackingMap = ({
           style={{
             // Ensure this stays below the sidebar (which uses z-50)
             zIndex: 40,
-            left: sidebarVisible ? '605px' : '288px',
+            left: sidebarVisible 
+              ? (windowWidth < 1020 ? '315px' : '605px')
+              : (windowWidth < 1020 ? '0px' : '288px'),
           }}
           title={sidebarVisible ? 'Hide Vehicle List' : 'Show Vehicle List'}
         >

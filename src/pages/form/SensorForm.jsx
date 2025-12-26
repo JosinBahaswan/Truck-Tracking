@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import TailwindLayout from '../../components/layout/TailwindLayout.jsx';
 import { devicesApi } from 'services/management';
+import AlertModal from '../../components/common/AlertModal.jsx';
 
 function Input({ label, icon, ...props }) {
   return (
@@ -71,6 +72,7 @@ export default function SensorForm() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState(null);
+  const [alertModal, setAlertModal] = React.useState({ isOpen: false, type: 'info', title: '', message: '' });
 
   // Tire positions for TPMS sensors (1-20 for typical mining trucks)
   const tirePositions = Array.from({ length: 20 }, (_, i) => ({
@@ -139,7 +141,7 @@ export default function SensorForm() {
 
       // Validation
       if (!form.device_id || !form.sn || !form.tireNo) {
-        alert('Device, Serial Number, and Tire Number are required fields!');
+        setAlertModal({ isOpen: true, type: 'warning', title: 'Validation Error', message: 'Device, Serial Number, and Tire Number are required fields!' });
         setSaving(false);
         return;
       }
@@ -160,18 +162,10 @@ export default function SensorForm() {
         console.log('➕ Creating new sensor');
         response = await devicesApi.createSensor(sensorData);
         console.log('✅ Sensor created successfully:', response);
-        alert('Sensor created successfully!');
-        // Reset form for adding another sensor
-        setForm({
-          device_id: '',
-          tireNo: 1,
-          sensorNo: '',
-          simNumber: '',
-          sn: '',
-          status: 'active',
-        });
-        // Stay on add form
-        navigate('/sensors/new', { replace: true });
+        setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Sensor created successfully!' });
+        setTimeout(() => {
+          navigate('/sensors');
+        }, 1500);
       } else {
         console.log('🔄 Updating sensor:', id);
         // For update, allow changing device_id, tireNo, sensorNo, simNumber, and status
@@ -192,14 +186,15 @@ export default function SensorForm() {
 
         response = await devicesApi.updateSensor(parseInt(id), updateData);
         console.log('✅ Sensor updated successfully:', response);
-        alert('Sensor updated successfully!');
-        // Navigate back to devices list
-        navigate('/devices');
+        setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Sensor updated successfully!' });
+        setTimeout(() => {
+          navigate('/devices');
+        }, 1500);
       }
     } catch (err) {
       console.error('❌ Failed to save sensor:', err);
       setError(err.message || 'Failed to save sensor');
-      alert(`Failed to save sensor: ${err.message || 'Unknown error'}`);
+      setAlertModal({ isOpen: true, type: 'error', title: 'Error', message: `Failed to save sensor: ${err.message || 'Unknown error'}` });
     } finally {
       setSaving(false);
     }
@@ -661,6 +656,14 @@ export default function SensorForm() {
         </div>
       </div>
       {/* </div> */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onConfirm={() => setAlertModal({ ...alertModal, isOpen: false })}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+        confirmText="OK"
+      />
     </TailwindLayout>
   );
 }

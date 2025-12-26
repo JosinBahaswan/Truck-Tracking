@@ -710,7 +710,7 @@ const Devices = () => {
                   <button
                     onClick={() => {
                       if (filtered.length === 0) {
-                        alert('No data to export');
+                        showAlert('warning', 'No Data', 'No data to export');
                         return;
                       }
                       const csvContent = [

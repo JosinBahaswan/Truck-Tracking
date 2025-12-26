@@ -46,11 +46,17 @@ const TailwindHeader = ({ setSidebarOpen }) => {
     .slice(0, 2)
     .toUpperCase();
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     try {
-      logout();
+      await logout();
+      // Force clear any remaining data
+      localStorage.clear();
+      console.log('✅ Logout complete');
+    } catch (error) {
+      console.error('❌ Logout error:', error);
     } finally {
-      navigate('/login', { replace: true });
+      // Always redirect to login
+      window.location.href = '/login';
     }
   };
 

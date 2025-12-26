@@ -69,7 +69,7 @@ export default function TemperatureChart({ data, loading }) {
               </linearGradient>
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" strokeOpacity={0.5} />
 
             <XAxis
               dataKey="time"
@@ -87,26 +87,30 @@ export default function TemperatureChart({ data, loading }) {
               style={{ fontSize: '12px', fill: '#6b7280' }}
             />
 
-            <Tooltip content={<CustomTooltip />} cursor={false} />
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(239, 68, 68, 0.1)', strokeWidth: 2 }} />
 
             <Area
               dataKey="average"
               type="monotone"
               fill="url(#fillAverage)"
-              fillOpacity={0.4}
+              fillOpacity={1}
               stroke="#f59e0b"
-              strokeWidth={2}
+              strokeWidth={3}
               name="Average"
+              animationDuration={1000}
+              animationEasing="ease-in-out"
             />
 
             <Area
               dataKey="max"
               type="monotone"
               fill="url(#fillMax)"
-              fillOpacity={0.3}
+              fillOpacity={1}
               stroke="#ef4444"
-              strokeWidth={2}
+              strokeWidth={3}
               name="Max"
+              animationDuration={1000}
+              animationEasing="ease-in-out"
             />
           </AreaChart>
         </ResponsiveContainer>
