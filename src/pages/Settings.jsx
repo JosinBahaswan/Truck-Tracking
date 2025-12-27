@@ -330,7 +330,7 @@ const Settings = () => {
     { id: 'profile', name: 'My Profile', icon: UserIcon },
     { id: 'create', name: 'Create Account', icon: UserPlusIcon },
     { id: 'security', name: 'Security', icon: ShieldCheckIcon },
-    { id: 'notifications', name: 'Notifications', icon: BellIcon }
+    // { id: 'notifications', name: 'Notifications', icon: BellIcon }
   ];
 
   return (
@@ -882,7 +882,7 @@ const Settings = () => {
                         </div>
                       </form>
                     </div>
-                    <div className="border-t border-gray-100 pt-6">
+                    {/* <div className="border-t border-gray-100 pt-6">
                       <h4 className="text-sm font-medium text-gray-900 mb-2">Session Management</h4>
                       <p className="text-sm text-gray-500 mb-4">
                         Manage your active sessions and sign out from all devices.
@@ -890,7 +890,7 @@ const Settings = () => {
                       <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
                         Sign Out All Sessions
                       </button>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               )}

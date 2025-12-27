@@ -25,22 +25,23 @@ const renderActiveShape = (props) => {
         cx={cx}
         cy={cy}
         innerRadius={innerRadius}
-        outerRadius={outerRadius + 10}
+        outerRadius={outerRadius + 15}
         startAngle={startAngle}
         endAngle={endAngle}
         fill={fill}
-        stroke="none"
+        stroke="#fff"
+        strokeWidth={3}
       />
       <Sector
         cx={cx}
         cy={cy}
-        innerRadius={outerRadius + 12}
-        outerRadius={outerRadius + 25}
+        innerRadius={outerRadius + 18}
+        outerRadius={outerRadius + 28}
         startAngle={startAngle}
         endAngle={endAngle}
         fill={fill}
         stroke="none"
-        opacity={0.8}
+        opacity={0.6}
       />
     </g>
   );
@@ -173,15 +174,15 @@ const TirePressureChart = ({ data, loading }) => {
                   <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.1" />
                 </filter>
               </defs>
-              <Tooltip content={<CustomTooltip />} cursor={false} />
               <Pie
                 data={chartData}
                 dataKey="value"
                 nameKey="name"
-                innerRadius={60}
-                outerRadius={80}
-                strokeWidth={0}
-                paddingAngle={0}
+                innerRadius={50}
+                outerRadius={85}
+                strokeWidth={2}
+                stroke="#fff"
+                paddingAngle={2}
                 id="tire-pie-element"
                 activeIndex={activeIndex}
                 activeShape={renderActiveShape}
@@ -197,6 +198,8 @@ const TirePressureChart = ({ data, loading }) => {
                     style={{
                       filter: activeIndex === index ? 'url(#shadow)' : 'none',
                       outline: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
                     }}
                   />
                 ))}

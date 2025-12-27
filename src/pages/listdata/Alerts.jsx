@@ -22,6 +22,7 @@ import {
   DropdownMenuContent,
 } from '../../components/common/DropdownMenu.jsx';
 import AlertModal from '../../components/common/AlertModal.jsx';
+import DatePicker from '../../components/common/DatePicker.jsx';
 import { useAlertNotifications } from '../../hooks/useAlertNotifications.js';
 
 const Alerts = () => {
@@ -30,7 +31,8 @@ const Alerts = () => {
   const [loading, setLoading] = useState(true);
   const [filterSeverity, setFilterSeverity] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [filterPeriod, setFilterPeriod] = useState(''); // 'today', 'week', 'month'
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   const [stats, setStats] = useState(null);
@@ -55,25 +57,12 @@ const Alerts = () => {
       if (filterSeverity) params.severity = filterSeverity;
       if (filterStatus) params.status = filterStatus;
       
-      // Add date range based on period filter
-      if (filterPeriod) {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        if (filterPeriod === 'today') {
-          // Today: from 00:00:00 today
-          params.date_from = today.toISOString().split('T')[0];
-        } else if (filterPeriod === 'week') {
-          // Last 7 days
-          const weekAgo = new Date(today);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          params.date_from = weekAgo.toISOString().split('T')[0];
-        } else if (filterPeriod === 'month') {
-          // Last 30 days
-          const monthAgo = new Date(today);
-          monthAgo.setDate(monthAgo.getDate() - 30);
-          params.date_from = monthAgo.toISOString().split('T')[0];
-        }
+      // Add date range from date pickers
+      if (dateFrom) {
+        params.date_from = dateFrom.toISOString().split('T')[0];
+      }
+      if (dateTo) {
+        params.date_to = dateTo.toISOString().split('T')[0];
       }
 
       const response = await alertEventsAPI.getAlerts(params);
@@ -89,7 +78,7 @@ const Alerts = () => {
     } finally {
       setLoading(false);
     }
-  }, [filterSeverity, filterStatus, filterPeriod, page]);
+  }, [filterSeverity, filterStatus, dateFrom, dateTo, page]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -369,7 +358,43 @@ const Alerts = () => {
           {/* Filters */}
           <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
             <div className="flex items-center gap-4 flex-wrap">
-
+              {/* Date Range Filters */}
+              <div className="flex items-center gap-2">
+                <DatePicker
+                  value={dateFrom}
+                  onChange={(date) => {
+                    setDateFrom(date);
+                    setPage(1);
+                  }}
+                  placeholder="Tanggal Awal"
+                  maxDate={dateTo || new Date()}
+                  className="w-40"
+                />
+                <span className="text-gray-500">-</span>
+                <DatePicker
+                  value={dateTo}
+                  onChange={(date) => {
+                    setDateTo(date);
+                    setPage(1);
+                  }}
+                  placeholder="Tanggal Akhir"
+                  minDate={dateFrom}
+                  maxDate={new Date()}
+                  className="w-40"
+                />
+                {(dateFrom || dateTo) && (
+                  <button
+                    onClick={() => {
+                      setDateFrom(null);
+                      setDateTo(null);
+                      setPage(1);
+                    }}
+                    className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -484,55 +509,6 @@ const Alerts = () => {
                     }}
                   >
                     Resolved Only
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    {filterPeriod === 'today'
-                      ? 'Hari Ini'
-                      : filterPeriod === 'week'
-                        ? '7 Hari Terakhir'
-                        : filterPeriod === 'month'
-                          ? '30 Hari Terakhir'
-                          : 'Semua Periode'}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="right" align="start" className="w-48 z-[9999]">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setFilterPeriod('');
-                      setPage(1);
-                    }}
-                  >
-                    Semua Periode
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setFilterPeriod('today');
-                      setPage(1);
-                    }}
-                  >
-                    Hari Ini
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setFilterPeriod('week');
-                      setPage(1);
-                    }}
-                  >
-                    7 Hari Terakhir
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setFilterPeriod('month');
-                      setPage(1);
-                    }}
-                  >
-                    30 Hari Terakhir
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

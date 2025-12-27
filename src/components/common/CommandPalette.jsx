@@ -1,12 +1,9 @@
 // src/components/common/CommandPalette.jsx
 import React, { Fragment, useEffect, useMemo, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, TruckIcon, DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
-// Import dari BE1 untuk tracking
-// import { trucksAPI } from 'services/tracking';
-// Import dari BE2 untuk master data devices
-import { devicesApi } from 'services/management';
+import { devicesApi, trucksApi } from '../../services/management';
 
 const debounce = (fn, ms) => {
   let t;
@@ -31,6 +28,27 @@ const CommandPalette = ({ open, setOpen }) => {
     }
   }, [open]);
 
+  // Handle ESC key to close
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && open) {
+        setOpen(false);
+      }
+      
+      // Handle Enter key - select first result
+      if (e.key === 'Enter' && open && !loading) {
+        if (vehicleResults.length > 0) {
+          onSelectVehicle(vehicleResults[0]);
+        } else if (deviceResults.length > 0) {
+          onSelectDevice(deviceResults[0]);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [open, setOpen, loading, vehicleResults, deviceResults]);
+
   const search = async (q) => {
     const term = q.trim().toLowerCase();
     if (!term) {
@@ -38,65 +56,71 @@ const CommandPalette = ({ open, setOpen }) => {
       setDeviceResults([]);
       return;
     }
+    
     setLoading(true);
+    console.log('🔍 Global search for:', term);
+    
     try {
-      // Vehicles: backend-only (prefer realtime geojson, fallback to list)
+      // Search Vehicles (Trucks)
       let vehicles = [];
       try {
-        // const res = await trucksAPI.getRealTimeLocations();
-        // if (res?.success && Array.isArray(res.data?.features)) {
-        //   vehicles = res.data.features.map((f) => ({
-        //     id: String(f?.properties?.truckNumber || f?.properties?.id || f?.id || ''),
-        //     name: f?.properties?.truckName || f?.properties?.plateNumber || '',
-        //     status: String(f?.properties?.status || 'offline').toLowerCase(),
-        //   }));
-        // }
-      } catch {
-        // ignore, try trucks list
-      }
-      if (!vehicles.length) {
-        try {
-          // const listRes = await trucksAPI.getAll({ limit: 50 });
-          // if (listRes?.success) {
-          //   const arr = listRes.data?.trucks || listRes.data || [];
-          //   vehicles = (Array.isArray(arr) ? arr : []).map((t) => ({
-          //     id: String(t.id || t.truckNumber || t.plate_number || t.name || ''),
-          //     name: t.name || t.plate_number || '',
-          //     status: String(t.status || 'offline').toLowerCase(),
-          //   }));
-          // }
-        } catch {
-          // ignore
+        console.log('📦 Searching trucks...');
+        const trucksRes = await trucksApi.getAll({ limit: 100 });
+        console.log('✅ Trucks response:', trucksRes);
+        
+        if (trucksRes?.success) {
+          const trucksArray = trucksRes.data?.trucks || trucksRes.data || [];
+          vehicles = (Array.isArray(trucksArray) ? trucksArray : [])
+            .filter((t) => {
+              const searchText = `${t.name || ''} ${t.plate_number || ''} ${t.vin || ''} ${t.id || ''}`.toLowerCase();
+              return searchText.includes(term);
+            })
+            .slice(0, 8)
+            .map((t) => ({
+              id: t.id,
+              name: t.name || t.plate_number || `Truck #${t.id}`,
+              plate_number: t.plate_number,
+              vin: t.vin,
+              status: String(t.status || 'unknown').toLowerCase(),
+            }));
         }
+        console.log('✅ Vehicle matches:', vehicles.length);
+      } catch (error) {
+        console.error('❌ Failed to search trucks:', error);
       }
-      const vMatches = vehicles
-        .filter((v) => `${v.id} ${v.name}`.toLowerCase().includes(term))
-        .slice(0, 8);
-      setVehicleResults(vMatches);
+      setVehicleResults(vehicles);
 
-      // Devices: backend-only
-      let dMatches = [];
+      // Search Devices
+      let devices = [];
       try {
-        const dRes = await devicesApi.getAll({ q: term, limit: 50 }); // Pakai devicesApi dari BE2
-        if (dRes?.success) {
-          const arr = dRes.data?.devices || dRes.data || [];
-          dMatches = (Array.isArray(arr) ? arr : [])
-            .filter((d) =>
-              `${d.sn || d.serial || ''} ${d.sim_number || d.sim || ''}`
-                .toLowerCase()
-                .includes(term)
-            )
+        console.log('📱 Searching devices...');
+        const devicesRes = await devicesApi.getAll({ limit: 100 });
+        console.log('✅ Devices response:', devicesRes);
+        
+        if (devicesRes?.success) {
+          const devicesArray = devicesRes.data?.devices || devicesRes.data || [];
+          devices = (Array.isArray(devicesArray) ? devicesArray : [])
+            .filter((d) => {
+              const searchText = `${d.sn || ''} ${d.sim_number || ''} ${d.id || ''}`.toLowerCase();
+              return searchText.includes(term);
+            })
             .slice(0, 8)
             .map((d) => ({
               id: d.id,
-              sn: d.sn || d.serial || '',
-              sim_number: d.sim_number || d.sim || '',
+              sn: d.sn || d.serial || 'N/A',
+              sim_number: d.sim_number || d.sim || 'N/A',
+              status: d.status || 'unknown',
             }));
         }
-      } catch {
-        // ignore
+        console.log('✅ Device matches:', devices.length);
+      } catch (error) {
+        console.error('❌ Failed to search devices:', error);
       }
-      setDeviceResults(dMatches);
+      setDeviceResults(devices);
+      
+      console.log('✅ Search complete:', { vehicles: vehicles.length, devices: devices.length });
+    } catch (error) {
+      console.error('❌ Global search error:', error);
     } finally {
       setLoading(false);
     }
@@ -109,16 +133,17 @@ const CommandPalette = ({ open, setOpen }) => {
   }, [debounced, query]);
 
   const onSelectVehicle = (v) => {
+    console.log('🚚 Selected vehicle:', v);
     setOpen(false);
-    // Navigate to live map with focus param; use truckNumber or id fragment
-    const focusParam = encodeURIComponent(v.id);
-    navigate(`/live-tracking?focus=${focusParam}`);
+    // Navigate to fleet management detail page
+    navigate(`/fleet-management/trucks/${v.id}`);
   };
 
   const onSelectDevice = (d) => {
+    console.log('📱 Selected device:', d);
     setOpen(false);
-    const q = encodeURIComponent(d.sn);
-    navigate(`/devices?q=${q}`);
+    // Navigate to devices page with search query
+    navigate(`/fleet-management/devices?search=${encodeURIComponent(d.sn)}`);
   };
 
   return (
@@ -156,43 +181,99 @@ const CommandPalette = ({ open, setOpen }) => {
                   placeholder="Search vehicles or devices..."
                   className="w-full bg-transparent outline-none text-sm text-slate-900 placeholder:text-slate-400"
                 />
-                <div className="text-[11px] text-slate-400">Ctrl/Cmd + K</div>
+                <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                  <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200">ESC</kbd>
+                  to close
+                </div>
               </div>
               <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                {/* Vehicles Section */}
                 <div className="px-4 py-3">
-                  <div className="text-[11px] font-semibold text-slate-500 mb-2">Vehicles</div>
-                  {loading && <div className="text-xs text-indigo-600">Searching...</div>}
-                  {!loading && vehicleResults.length === 0 && (
-                    <div className="text-xs text-slate-400">No results</div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <TruckIcon className="w-4 h-4 text-slate-400" />
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase">Vehicles</div>
+                  </div>
+                  {loading && query && (
+                    <div className="text-xs text-indigo-600 py-2">Searching vehicles...</div>
+                  )}
+                  {!loading && !query && (
+                    <div className="text-xs text-slate-400 py-2">Type to search vehicles...</div>
+                  )}
+                  {!loading && query && vehicleResults.length === 0 && (
+                    <div className="text-xs text-slate-400 py-2">No vehicles found</div>
                   )}
                   <ul className="space-y-1">
                     {vehicleResults.map((v) => (
                       <li key={v.id}>
                         <button
                           onClick={() => onSelectVehicle(v)}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 text-sm text-slate-800"
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors group"
                         >
-                          <span className="font-semibold">{v.id}</span>
-                          {v.name ? <span className="text-slate-500"> · {v.name}</span> : null}
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-sm font-semibold text-slate-800 group-hover:text-indigo-600">
+                                {v.name}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                {v.plate_number && <span>Plate: {v.plate_number}</span>}
+                                {v.vin && <span className="ml-2">VIN: {v.vin}</span>}
+                              </div>
+                            </div>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              v.status === 'active' 
+                                ? 'bg-green-100 text-green-700' 
+                                : v.status === 'maintenance'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {v.status}
+                            </span>
+                          </div>
                         </button>
                       </li>
                     ))}
                   </ul>
                 </div>
+                
+                {/* Devices Section */}
                 <div className="px-4 py-3">
-                  <div className="text-[11px] font-semibold text-slate-500 mb-2">Devices</div>
-                  {!loading && deviceResults.length === 0 && (
-                    <div className="text-xs text-slate-400">No results</div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <DevicePhoneMobileIcon className="w-4 h-4 text-slate-400" />
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase">Devices</div>
+                  </div>
+                  {loading && query && (
+                    <div className="text-xs text-indigo-600 py-2">Searching devices...</div>
+                  )}
+                  {!loading && !query && (
+                    <div className="text-xs text-slate-400 py-2">Type to search devices...</div>
+                  )}
+                  {!loading && query && deviceResults.length === 0 && (
+                    <div className="text-xs text-slate-400 py-2">No devices found</div>
                   )}
                   <ul className="space-y-1">
                     {deviceResults.map((d) => (
                       <li key={d.id}>
                         <button
                           onClick={() => onSelectDevice(d)}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 text-sm text-slate-800"
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors group"
                         >
-                          <span className="font-semibold">{d.sn}</span>
-                          <span className="text-slate-500"> · {d.sim_number}</span>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-sm font-semibold text-slate-800 group-hover:text-indigo-600">
+                                {d.sn}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                SIM: {d.sim_number}
+                              </div>
+                            </div>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              d.status === 'active' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {d.status}
+                            </span>
+                          </div>
                         </button>
                       </li>
                     ))}
