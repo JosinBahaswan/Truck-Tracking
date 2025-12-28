@@ -35,6 +35,7 @@ import DeviceForm from '../pages/form/DeviceForm';
 import SensorForm from '../pages/form/SensorForm';
 import ChartAreaGradient from '../components/chart/AreaChartGradient';
 import ChartPieLabel from '../components/chart/PieChartLabel';
+import MasterData from '../pages/MasterData';
 // import DonutChartText from '../components/chart/PieChartDonut';
 
 /**
@@ -304,6 +305,16 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Alerts />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Protected Routes - Master Data */}
+      <Route
+        path="/master-data"
+        element={
+          <ProtectedRoute>
+            <MasterData />
           </ProtectedRoute>
         }
       />

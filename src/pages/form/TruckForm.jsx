@@ -72,6 +72,7 @@ export default function TruckForm() {
 
   // Initialize form data
   const [formData, setFormData] = React.useState({
+    displayNumber: '',
     truckNumber: '',
     plateNumber: '',
     model: '',
@@ -110,6 +111,7 @@ export default function TruckForm() {
 
             // Map backend data to form
             setFormData({
+              displayNumber: truckData.displayNumber || truckData.display_number || '',
               truckNumber: truckData.name || truckData.truckNumber || truckData.truck_number || '',
               plateNumber: truckData.plate || truckData.plateNumber || truckData.plate_number || '',
               model: truckData.model || '',
@@ -442,6 +444,28 @@ export default function TruckForm() {
                 </div>
                 <div className="p-4 space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <Input
+                      label="Display Number"
+                      type="number"
+                      value={formData.displayNumber || ''}
+                      onChange={(e) => handleInputChange('displayNumber', e.target.value)}
+                      placeholder="e.g., 1, 2, 3"
+                      icon={
+                        <svg
+                          className="w-4 h-4 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"
+                          />
+                        </svg>
+                      }
+                    />
                     <Input
                       label="Truck Number *"
                       value={formData.truckNumber}

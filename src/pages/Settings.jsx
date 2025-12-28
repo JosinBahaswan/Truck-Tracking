@@ -12,7 +12,11 @@ import {
   EnvelopeIcon,
   PencilSquareIcon,
   ChatBubbleLeftIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
+  DocumentArrowDownIcon,
+  DocumentArrowUpIcon
 } from '@heroicons/react/24/outline';
 
 const Settings = () => {
@@ -34,8 +38,10 @@ const Settings = () => {
     confirmPassword: ''
   });
   const fileInputRef = useRef(null);
+  const csvImportRef = useRef(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, type: 'info', title: '', message: '' });
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [importProgress, setImportProgress] = useState({ show: false, current: 0, total: 0, errors: [] });
 
   const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
   const BASE_URL = API_URL.replace('/api', ''); // Base URL without /api for static files
@@ -267,6 +273,18 @@ const Settings = () => {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
+    
+    // Check if user is admin or superadmin
+    if (!isAdminRole(profile?.role)) {
+      setAlertModal({ 
+        isOpen: true, 
+        type: 'error', 
+        title: 'Access Denied', 
+        message: 'Only administrators can create new user accounts' 
+      });
+      return;
+    }
+    
     try {
       // managementClient automatically injects token
       await managementClient.post('/users', newUserForm, {
@@ -287,6 +305,228 @@ const Settings = () => {
       });
     } catch (error) {
       setAlertModal({ isOpen: true, type: 'error', title: 'Failed', message: error.response?.data?.message || 'Failed to create user' });
+    }
+  };
+
+  // Helper function to check if user has admin privileges
+  const isAdminRole = (role) => {
+    if (!role) return false;
+    const normalizedRole = role.toLowerCase();
+    return normalizedRole === 'admin' || normalizedRole === 'superadmin';
+  };
+
+  // Export CSV Template for bulk user import
+  const handleExportTemplate = () => {
+    const headers = ['name', 'email', 'password', 'role', 'phone', 'department', 'bio', 'status'];
+    const exampleRow = ['John Doe', 'john.doe@example.com', 'password123', 'operator', '+62 812 3456 7890', 'IT & Systems', 'Fleet operator', 'active'];
+    const csvContent = [
+      headers.join(','),
+      exampleRow.join(','),
+      // Add empty row for user to fill
+      ',,,,,,,'
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `user_import_template_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Export all users to CSV
+  const handleExportUsers = async () => {
+    try {
+      const response = await managementClient.get('/users');
+      const users = response.data || response.users || response || [];
+      
+      if (users.length === 0) {
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'info', 
+          title: 'No Data', 
+          message: 'No users found to export' 
+        });
+        return;
+      }
+
+      const headers = ['name', 'email', 'role', 'phone', 'department', 'bio', 'status'];
+      const csvRows = [headers.join(',')];
+      
+      users.forEach(user => {
+        const name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || '';
+        const row = [
+          `"${name}"`,
+          user.email || '',
+          user.role || '',
+          user.phone || '',
+          user.department || '',
+          `"${(user.bio || '').replace(/"/g, '""')}"`,
+          user.status || 'active'
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `users_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setAlertModal({ 
+        isOpen: true, 
+        type: 'success', 
+        title: 'Export Success', 
+        message: `Successfully exported ${users.length} users` 
+      });
+    } catch (error) {
+      console.error('Failed to export users:', error);
+      setAlertModal({ 
+        isOpen: true, 
+        type: 'error', 
+        title: 'Export Failed', 
+        message: error.response?.data?.message || 'Failed to export users' 
+      });
+    }
+  };
+
+  // Parse CSV content
+  const parseCSV = (text) => {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const data = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let char of lines[i]) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim().replace(/^"|"$/g, ''));
+
+      if (values.length === headers.length) {
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index];
+        });
+        // Only add if email is present (required field)
+        if (row.email && row.email.trim()) {
+          data.push(row);
+        }
+      }
+    }
+
+    return data;
+  };
+
+  // Import users from CSV
+  const handleImportCSV = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      setAlertModal({ 
+        isOpen: true, 
+        type: 'error', 
+        title: 'Invalid File', 
+        message: 'Please upload a CSV file' 
+      });
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const users = parseCSV(text);
+
+      if (users.length === 0) {
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'error', 
+          title: 'No Data', 
+          message: 'No valid user data found in CSV file' 
+        });
+        return;
+      }
+
+      // Show progress
+      setImportProgress({ show: true, current: 0, total: users.length, errors: [] });
+
+      let successCount = 0;
+      const errors = [];
+
+      for (let i = 0; i < users.length; i++) {
+        const user = users[i];
+        try {
+          await managementClient.post('/users', {
+            name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+            email: user.email,
+            password: user.password || 'default123',
+            role: user.role || 'operator',
+            phone: user.phone || null,
+            department: user.department || null,
+            bio: user.bio || null,
+            status: user.status || 'active'
+          });
+          successCount++;
+        } catch (error) {
+          errors.push({
+            row: i + 2, // +2 because of header and 0-index
+            email: user.email,
+            error: error.response?.data?.message || 'Failed to create user'
+          });
+        }
+        setImportProgress(prev => ({ ...prev, current: i + 1 }));
+      }
+
+      // Hide progress
+      setTimeout(() => {
+        setImportProgress({ show: false, current: 0, total: 0, errors: [] });
+      }, 2000);
+
+      // Show result
+      const message = errors.length > 0
+        ? `Imported ${successCount} of ${users.length} users. ${errors.length} failed.`
+        : `Successfully imported all ${successCount} users!`;
+
+      setAlertModal({ 
+        isOpen: true, 
+        type: errors.length > 0 ? 'warning' : 'success', 
+        title: 'Import Complete', 
+        message: message + (errors.length > 0 ? '\n\nErrors:\n' + errors.map(e => `Row ${e.row} (${e.email}): ${e.error}`).join('\n') : '')
+      });
+
+      // Reset file input
+      if (csvImportRef.current) {
+        csvImportRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Failed to import CSV:', error);
+      setImportProgress({ show: false, current: 0, total: 0, errors: [] });
+      setAlertModal({ 
+        isOpen: true, 
+        type: 'error', 
+        title: 'Import Failed', 
+        message: 'Failed to process CSV file: ' + error.message 
+      });
     }
   };
 
@@ -326,9 +566,12 @@ const Settings = () => {
     }
   };
 
+  // Filter tabs based on user role - only admin/superadmin can see Create Account tab
   const tabs = [
     { id: 'profile', name: 'My Profile', icon: UserIcon },
-    { id: 'create', name: 'Create Account', icon: UserPlusIcon },
+    ...(isAdminRole(profile?.role) ? [
+      { id: 'create', name: 'Create Account', icon: UserPlusIcon }
+    ] : []),
     { id: 'security', name: 'Security', icon: ShieldCheckIcon },
     // { id: 'notifications', name: 'Notifications', icon: BellIcon }
   ];
@@ -641,12 +884,98 @@ const Settings = () => {
               {/* Create New User Section */}
               {activeTab === 'create' && (
                 <div className="bg-white shadow-sm rounded-xl p-6 border border-gray-100">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                      <span className="w-1 h-6 bg-indigo-400 rounded-full mr-3"></span>
-                      Create New User Account
-                    </h3>
-                  </div>
+                  {!isAdminRole(profile?.role) ? (
+                    <div className="text-center py-12">
+                      <ShieldCheckIcon className="mx-auto h-16 w-16 text-gray-300" />
+                      <h3 className="mt-4 text-lg font-semibold text-gray-900">Access Restricted</h3>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Only administrators can create new user accounts.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                          <span className="w-1 h-6 bg-indigo-400 rounded-full mr-3"></span>
+                          Create New User Account
+                        </h3>
+                        
+                        {/* Export/Import Buttons */}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={handleExportTemplate}
+                            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-xs font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                            title="Download CSV template for bulk import"
+                          >
+                            <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
+                            Download Template
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleExportUsers}
+                            className="inline-flex items-center px-3 py-2 border border-emerald-300 shadow-sm text-xs font-medium rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                            title="Export all users to CSV"
+                          >
+                            <ArrowDownTrayIcon className="h-4 w-4 mr-1.5" />
+                            Export Users
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => csvImportRef.current?.click()}
+                            className="inline-flex items-center px-3 py-2 border border-indigo-300 shadow-sm text-xs font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                            title="Import users from CSV file"
+                          >
+                            <ArrowUpTrayIcon className="h-4 w-4 mr-1.5" />
+                            Import CSV
+                          </button>
+                          <input
+                            ref={csvImportRef}
+                            type="file"
+                            accept=".csv"
+                            className="hidden"
+                            onChange={handleImportCSV}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Import Progress Bar */}
+                      {importProgress.show && (
+                        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-blue-900">
+                              Importing users...
+                            </span>
+                            <span className="text-sm text-blue-700">
+                              {importProgress.current} / {importProgress.total}
+                            </span>
+                          </div>
+                          <div className="w-full bg-blue-200 rounded-full h-2.5">
+                            <div
+                              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                              style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Instructions */}
+                      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                        <h4 className="text-sm font-semibold text-amber-900 mb-2 flex items-center">
+                          <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                          Bulk Import Instructions
+                        </h4>
+                        <ul className="text-xs text-amber-800 space-y-1 ml-7">
+                          <li>• Click <strong>"Download Template"</strong> to get CSV template with example data</li>
+                          <li>• Fill in user data (name, email, password, role, phone, department, bio, status)</li>
+                          <li>• Valid roles: <code className="px-1 py-0.5 bg-amber-100 rounded">operator</code>, <code className="px-1 py-0.5 bg-amber-100 rounded">viewer</code>, <code className="px-1 py-0.5 bg-amber-100 rounded">admin</code></li>
+                          <li>• Click <strong>"Import CSV"</strong> to upload and create all users at once</li>
+                          <li>• Use <strong>"Export Users"</strong> to download existing users for reference</li>
+                        </ul>
+                      </div>
+                      
                   <form onSubmit={handleCreateUser}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="md:col-span-2">
@@ -801,6 +1130,8 @@ const Settings = () => {
                       </div>
                     </div>
                   </form>
+                  </>
+                  )}
                 </div>
               )}
 

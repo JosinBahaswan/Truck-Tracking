@@ -12,9 +12,8 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from '../../components/common/DropdownMenu.jsx';
-// Use Backend 2 APIs and Hooks
+// Use Backend 2 APIs
 import { trucksApi, driversApi, vendorsApi } from 'services/management';
-import { useCRUD } from '../../hooks/useApi2.js';
 
 function Input({ label, icon, ...props }) {
   return (
@@ -136,9 +135,6 @@ const TrucksFormList = () => {
   const [statusFilter, setStatusFilter] = React.useState('');
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(25);
-
-  // Use CRUD hook for update operations (soft delete)
-  const { update: updateTruck } = useCRUD(trucksApi);
 
   // Column visibility state - only for optional columns
   const [visibleColumns, setVisibleColumns] = React.useState({
@@ -396,7 +392,7 @@ const TrucksFormList = () => {
     showCancel: false,
   });
 
-  const [deleteId, setDeleteId] = React.useState(null);
+  const [setDeleteId] = React.useState(null);
 
   const showDeleteConfirmation = (id) => {
     setDeleteId(id);
@@ -419,30 +415,16 @@ const TrucksFormList = () => {
     try {
       console.log('🗑️ Soft-deleting vehicle with ID:', id);
 
-      // Soft delete: update deleted_at field instead of hard delete
-      const deleteData = { deleted_at: new Date().toISOString() };
-      console.log('📤 Sending delete payload:', deleteData);
-
-      const response = await updateTruck(id, deleteData);
+      // Call DELETE API endpoint (backend akan melakukan soft delete)
+      const response = await trucksApi.delete(id);
       console.log('✅ Delete response:', response);
 
-      // Verify the update was successful
+      // Verify the delete was successful
       if (response?.data?.success !== false) {
         console.log('✅ Vehicle soft-deleted successfully');
 
-        // Instead of reloading all data, directly update state to remove the deleted truck
-        // This is more reliable since backend may not return deleted trucks in getAll()
-        setTrucks((prevTrucks) => {
-          const updated = prevTrucks.map((t) => {
-            if (t.id === id) {
-              console.log('🔄 Marking truck as deleted in state:', id);
-              return { ...t, deleted_at: deleteData.deleted_at, deletedAt: deleteData.deleted_at };
-            }
-            return t;
-          });
-          console.log('✅ State updated, truck marked as deleted');
-          return updated;
-        });
+        // Reload data dari server untuk memastikan sinkronisasi
+        await load();
 
         setAlert({
           isOpen: true,

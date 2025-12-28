@@ -165,9 +165,9 @@ const TirePressureChart = ({ data, loading }) => {
         </select>
       </div>
 
-      <div className="flex flex-1 justify-center pb-0 p-6" id="tire-chart-wrapper">
-        <div className="mx-auto aspect-square w-full max-w-[300px]">
-          <ResponsiveContainer width="100%" height="100%" id="tire-responsive-container" key={chartKey}>
+      <div className="flex flex-1 justify-center pb-0 p-6" id="tire-chart-wrapper" style={{ minHeight: '300px' }}>
+        <div className="mx-auto aspect-square w-full max-w-[300px]" style={{ minHeight: '300px', minWidth: '300px' }}>
+          <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={300} id="tire-responsive-container" key={chartKey}>
             <PieChart id="tire-pressure-pie-chart" key={`tire-pie-${chartKey}`} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
               <defs>
                 <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">

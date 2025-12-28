@@ -402,7 +402,7 @@ const LiveTrackingMapNew = () => {
       console.error('❌ Failed to create WebSocket connection:', error);
       setWsStatus('error');
     }
-  }, []);
+  }, );
 
   // Handle real-time truck location update from WebSocket
   const handleTruckLocationUpdate = useCallback((data) => {

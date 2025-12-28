@@ -14,6 +14,7 @@ import {
   CpuChipIcon,
   ClockIcon,
   SignalIcon,
+  CircleStackIcon,
 } from '@heroicons/react/24/outline';
 
 const navigation = [
@@ -57,6 +58,7 @@ const navigation = [
 
   // { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, current: false },
   // { name: 'Reports', href: '/reports', icon: DocumentTextIcon, current: false },
+  { name: 'Master Data', href: '/master-data', icon: CircleStackIcon },
   { name: 'Alerts', href: '/alerts', icon: BellIcon },
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ];

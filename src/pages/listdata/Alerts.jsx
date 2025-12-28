@@ -585,12 +585,6 @@ const Alerts = () => {
                               <span className="font-medium">Truck:</span>
                               <span className="text-gray-900">{alert.truck?.name || `#${alert.truck_id}`}</span>
                             </div>
-                            {alert.sensor && (
-                              <div className="flex items-center gap-1">
-                                <span className="font-medium">Tire:</span>
-                                <span className="text-gray-900">{alert.sensor.tire_no}</span>
-                              </div>
-                            )}
                             <div className="flex items-center gap-1">
                               <span className="font-medium">Value:</span>
                               <span className="text-gray-900 font-mono">{alert.value}</span>
