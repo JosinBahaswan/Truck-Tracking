@@ -161,17 +161,31 @@ export default function DeviceForm() {
 
   const onSave = async () => {
     try {
-      // Validation
+      // Frontend Validation dengan pesan yang spesifik
+      const errors = [];
+      
       if (!form.sn?.trim()) {
-        showAlert.warning('Please enter Device SN', 'Validation Error');
-        return;
+        errors.push('• Device SN (Serial Number) is required');
+      } else if (form.sn.length < 3) {
+        errors.push('• Device SN must be at least 3 characters');
+      } else if (form.sn.length > 50) {
+        errors.push('• Device SN must not exceed 50 characters');
+      } else if (!/^[A-Za-z0-9_-]+$/.test(form.sn)) {
+        errors.push('• Device SN can only contain letters, numbers, hyphens and underscores');
       }
+      
       if (!form.imei?.trim()) {
-        showAlert.warning('Please enter SIM Number', 'Validation Error');
-        return;
+        errors.push('• SIM Number is required');
+      } else if (form.imei.length > 20) {
+        errors.push('• SIM Number must not exceed 20 characters');
       }
+      
       if (!form.truck_id) {
-        showAlert.warning('Please select a truck', 'Validation Error');
+        errors.push('• Truck is required (please select a truck)');
+      }
+
+      if (errors.length > 0) {
+        showAlert.warning(`Please fix the following errors:\n\n${errors.join('\n')}`, 'Validation Error');
         return;
       }
 
@@ -208,14 +222,20 @@ export default function DeviceForm() {
         } catch (error) {
           console.error('❌ Failed to create device:', error);
 
-          // Extract error message from response
-          const errorMessage =
-            error.response?.data?.message ||
-            error.response?.data?.error ||
-            error.message ||
-            'Unknown error occurred';
-
-          showAlert.error(errorMessage, 'Failed to Create Device');
+          // Handle validation errors from backend
+          if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+            const errorMessages = error.response.data.errors
+              .map((e) => `• ${e.field}: ${e.message}`)
+              .join('\n');
+            showAlert.error(`Please fix the following errors:\n\n${errorMessages}`, 'Validation Error');
+          } else {
+            const errorMessage =
+              error.response?.data?.message ||
+              error.response?.data?.error ||
+              error.message ||
+              'Failed to create device. Please check your input.';
+            showAlert.error(errorMessage, 'Failed to Create Device');
+          }
           throw error;
         }
       } else {
@@ -246,11 +266,20 @@ export default function DeviceForm() {
         } catch (error) {
           console.error('❌ Failed to update device:', error);
 
+          // Handle validation errors from backend
+          if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+            const errorMessages = error.response.data.errors
+              .map((e) => `• ${e.field}: ${e.message}`)
+              .join('\n');
+            showAlert.error(`Please fix the following errors:\n\n${errorMessages}`, 'Validation Error');
+            throw error;
+          }
+
           const errorMessage =
             error.response?.data?.message ||
             error.response?.data?.error ||
             error.message ||
-            'Unknown error occurred';
+            'Failed to update device. Please check your input.';
 
           showAlert.error(errorMessage, 'Failed to Update Device');
           throw error;

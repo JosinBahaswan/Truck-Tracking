@@ -8,7 +8,7 @@ import api2Instance from '../../config';
 export const trucksApi = {
   /**
    * Get all trucks with pagination and filters
-   * @param {Object} params - { page, limit, status, vendor_id, search }
+   * @param {Object} params - { page, limit, status, vendor_id, search, includeDeleted }
    * @returns {Promise}
    */
   getAll: async (params = {}) => {
@@ -20,15 +20,28 @@ export const trucksApi = {
       if (params.status) queryParams.append('status', params.status);
       if (params.vendor_id) queryParams.append('vendor_id', params.vendor_id);
       if (params.search) queryParams.append('search', params.search);
+      if (params.includeDeleted) queryParams.append('includeDeleted', 'true'); // 🔥 Support deleted trucks
 
       const queryString = queryParams.toString();
       const url = queryString ? `/trucks?${queryString}` : '/trucks';
 
       console.log('🚛 Fetching trucks from:', url);
       const response = await api2Instance.get(url);
+      
+      // Debug: log raw response structure
+      console.log('🔍 Raw response structure:', {
+        hasResponse: !!response,
+        hasData: !!response?.data,
+        hasSuccess: response?.success,
+        dataTrucks: response?.data?.trucks?.length,
+        directTrucks: response?.trucks?.length,
+        responseKeys: response ? Object.keys(response) : [],
+        dataKeys: response?.data ? Object.keys(response?.data) : []
+      });
+      
       console.log(
         '✅ Trucks data loaded:',
-        response?.data?.trucks?.length || response?.data?.length || 'unknown count',
+        response?.data?.trucks?.length || response?.trucks?.length || response?.data?.length || 'unknown count',
         'trucks'
       );
       return response;

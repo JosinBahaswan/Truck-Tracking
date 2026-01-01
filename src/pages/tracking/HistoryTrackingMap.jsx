@@ -5,6 +5,7 @@ import L from 'leaflet';
 import { PlayIcon, PauseIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import BaseTrackingMap from './BaseTrackingMap';
 import { trackingAPI, historyAPI } from 'services/tracking'; // BE1 Tracking & History API
+import { trucksApi } from 'services/management';
 import TirePressureDisplay from '../../components/dashboard/TirePressureDisplay';
 import DatePicker from '../../components/common/DatePicker';
 
@@ -44,8 +45,8 @@ const HistoryTrackingMap = () => {
     return `${yyyy}-${mm}-${dd}`;
   });
   const [shiftMode, setShiftMode] = useState('day');
-  const [customStart, setCustomStart] = useState('06:00');
-  const [customEnd, setCustomEnd] = useState('16:00');
+  const [customStart, setCustomStart] = useState('08:00');
+  const [customEnd, setCustomEnd] = useState('20:00');
   const [playbackIndex, setPlaybackIndex] = useState(0);
   const [isPlaybackPlaying, setIsPlaybackPlaying] = useState(false);
   const [isAutoCenterEnabled, setIsAutoCenterEnabled] = useState(false);
@@ -53,6 +54,12 @@ const HistoryTrackingMap = () => {
   const [currentPlaybackTireData, setCurrentPlaybackTireData] = useState(null);
   const [currentPlaybackTimestamp, setCurrentPlaybackTimestamp] = useState(null);
   const [isUsingHistoricalData, setIsUsingHistoricalData] = useState(false);
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
+
+  // Allow loading history by explicit truck id (useful for soft-deleted trucks)
+  const [truckSearchId, setTruckSearchId] = useState('');
+  const [deletedAtByVehicle, setDeletedAtByVehicle] = useState({});
 
   const markersRef = useRef({});
   const routeLinesRef = useRef({});
@@ -73,24 +80,26 @@ const HistoryTrackingMap = () => {
     try {
       const [y, m, d] = dateStr.split('-').map(Number);
       if (shiftMode === 'night') {
+        // Night shift: 16:00 (4 PM) to 08:00 (8 AM) next day
         const start = new Date(y, m - 1, d, 16, 0, 0, 0);
-        const end = new Date(y, m - 1, d + 1, 6, 0, 0, 0);
+        const end = new Date(y, m - 1, d + 1, 8, 0, 0, 0);
         return { start, end };
       }
       if (shiftMode === 'custom') {
-        const [sh, sm] = (customStart || '06:00').split(':').map(Number);
+        const [sh, sm] = (customStart || '08:00').split(':').map(Number);
         const [eh, em] = (customEnd || '16:00').split(':').map(Number);
         let start = new Date(y, m - 1, d, sh || 0, sm || 0, 0, 0);
         let end = new Date(y, m - 1, d, eh || 0, em || 0, 0, 0);
         if (end <= start) end = new Date(y, m - 1, d + 1, eh || 0, em || 0, 0, 0);
         return { start, end };
       }
-      const start = new Date(y, m - 1, d, 6, 0, 0, 0);
+      // Day shift: 08:00 (8 AM) to 16:00 (4 PM)
+      const start = new Date(y, m - 1, d, 8, 0, 0, 0);
       const end = new Date(y, m - 1, d, 16, 0, 0, 0);
       return { start, end };
     } catch {
       const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 6, 0, 0, 0);
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0, 0);
       const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 16, 0, 0, 0);
       return { start, end };
     }
@@ -123,6 +132,19 @@ const HistoryTrackingMap = () => {
       console.log(`📍 Loading route history for truck ${truckId} (${timeRange})`);
 
       const { start, end } = windowOverride || getDayWindow(selectedDate);
+      // Fetch truck metadata (to get deleted_at) so we can exclude history after deletion
+      let deletedAt = null;
+      try {
+        const metaRes = await trucksApi.getById(truckId);
+        const meta = metaRes?.data?.truck || metaRes?.data || {};
+        const deletedRaw = meta?.deletedAt || meta?.deleted_at || meta?.deleted_at_timestamp || null;
+        if (deletedRaw) deletedAt = new Date(deletedRaw);
+        if (deletedAt) {
+          setDeletedAtByVehicle((prev) => ({ ...prev, [String(truckId)]: deletedAt }));
+        }
+      } catch (metaErr) {
+        console.warn('Could not fetch truck metadata for deletion info:', metaErr.message || metaErr);
+      }
       
       // Try NEW History API first
       try {
@@ -145,10 +167,25 @@ const HistoryTrackingMap = () => {
         if (response.success && response.data && Array.isArray(response.data) && response.data.length > 0) {
           const historyData = response.data;
           
-          console.log(`📦 Received ${historyData.length} history points with tire snapshots`);
+          console.log(`📦 Received ${historyData.length} history points for truck ${truckId}`);
+          
+          // IMPORTANT: Filter to ensure we only get data for THIS truck
+          // Backend might return data for all trucks, so we filter client-side
+          const filteredData = historyData.filter(point => {
+            // Check if this point belongs to the requested truck
+            const pointTruckId = point.truck_id || point.truckId || point.truck_info?.truck_id;
+            return String(pointTruckId) === String(truckId);
+          });
+          
+          if (filteredData.length === 0) {
+            console.warn(`⚠️ No data found for truck ${truckId} after filtering. Received ${historyData.length} points total.`);
+            return { points: [], records: [], tireData: [] };
+          }
+          
+          console.log(`✅ Filtered to ${filteredData.length} points for truck ${truckId} (removed ${historyData.length - filteredData.length} points from other trucks)`);
           
           // Convert API response to route points format
-          const enriched = historyData
+          let enriched = filteredData
             .map((point) => {
               const lat = parseFloat(point.location?.lat);
               const lng = parseFloat(point.location?.lng);
@@ -165,17 +202,36 @@ const HistoryTrackingMap = () => {
                 timestamp: tire.timestamp ? new Date(tire.timestamp) : null
               }));
               
-              return { 
+              // Extract truck_info from snapshot (for deleted trucks)
+              const truckInfo = point.truck_info || {};
+              
+                return { 
                 lat, 
                 lng, 
                 t, 
                 raw: point, 
-                speed: null,
-                tireData: tireData
+                speed: point.location?.speed || null,
+                heading: point.location?.heading || null,
+                tireData: tireData,
+                // Preserve truck snapshot info
+                truckSnapshot: {
+                  name: truckInfo.truck_name,
+                  plate: truckInfo.truck_plate,
+                  vin: truckInfo.truck_vin,
+                  model: truckInfo.truck_model,
+                  year: truckInfo.truck_year,
+                  driver: truckInfo.driver_name,
+                  vendor: truckInfo.vendor_name
+                }
               };
             })
             .filter((r) => !isNaN(r.lat) && !isNaN(r.lng) && r.lat !== 0 && r.lng !== 0)
-            .reverse(); // Reverse to play from oldest to newest
+              .filter((r) => !deletedAt || !r.t || r.t < deletedAt)
+              .sort((a, b) => {
+                // Sort by timestamp (oldest first)
+                if (!a.t || !b.t) return 0;
+                return a.t - b.t;
+              });
           
           const routePoints = enriched.map((r) => [r.lat, r.lng]);
           const initialTireData = enriched.length > 0 ? enriched[0].tireData : [];
@@ -204,71 +260,10 @@ const HistoryTrackingMap = () => {
         console.error('⚠️ History API FAILED - Details:');
         console.error('  Error:', historyError.message);
         console.error('  Stack:', historyError.stack);
-        console.error('  Falling back to old API...');
       }
       
-      // FALLBACK to OLD API if new API fails or returns no data
-      console.log('🔄 Using old Tracking API (with simulated variations)...');
-      const response = await trackingAPI.getTruckTracking(truckId);
-      
-      if (response.success && response.data?.location_history) {
-        const locationHistory = response.data.location_history;
-        const sensorData = response.data.sensors || [];
-        
-        // Create base tire data from current sensors
-        const baseTireData = sensorData.map((sensor) => ({
-          tireNo: sensor.tireNo,
-          sensorNo: sensor.sensorNo,
-          tempValue: sensor.tempValue,
-          tirepValue: sensor.tirepValue,
-          exType: sensor.exType,
-          bat: sensor.bat,
-        }));
-        
-        // Generate tire data variations for each location point
-        // This simulates historical changes since old API only has latest data
-        const enriched = locationHistory
-          .map((loc, index) => {
-            const lat = parseFloat(loc.latitude);
-            const lng = parseFloat(loc.longitude);
-            const t = loc.recorded_at ? new Date(loc.recorded_at) : null;
-            
-            // Create variation for this point (simulate historical snapshot)
-            // Vary ±5% for temperature and ±3% for pressure
-            const variationFactor = (index / locationHistory.length) * 0.1; // Progressive variation
-            const tireDataVariation = baseTireData.map((sensor) => ({
-              ...sensor,
-              tempValue: sensor.tempValue + (Math.random() - 0.5) * sensor.tempValue * 0.05,
-              tirepValue: sensor.tirepValue + (Math.random() - 0.5) * sensor.tirepValue * 0.03,
-            }));
-            
-            return { 
-              lat, 
-              lng, 
-              t, 
-              raw: loc, 
-              speed: null,
-              tireData: tireDataVariation // Each point has slightly different tire data
-            };
-          })
-          .filter((r) => !isNaN(r.lat) && !isNaN(r.lng) && r.lat !== 0 && r.lng !== 0)
-          .filter((r) => {
-            if (!r.t || isNaN(r.t)) return true;
-            return r.t >= start && r.t <= end;
-          })
-          .reverse(); // Reverse to play from oldest to newest
-        
-        const routePoints = enriched.map((r) => [r.lat, r.lng]);
-        
-        console.log(`✅ OLD API: Loaded ${routePoints.length} route points with ${baseTireData.length} sensors (simulated variations)`);
-        console.log('⚠️ Note: Using simulated data variations. For accurate historical data, use History API.');
-        
-        setIsUsingHistoricalData(false); // Mark as using simulated data
-        
-        return { points: routePoints, records: enriched, tireData: baseTireData };
-      }
-
-      console.warn(`⚠️ No location history found for truck ${truckId}`);
+      // No fallback - if History API fails or returns no data, return empty
+      console.warn(`⚠️ No history data available for truck ${truckId} in selected date range`);
       return { points: [], records: [], tireData: [] };
     } catch (error) {
       console.error(`❌ Failed to load route history for truck ${truckId}:`, error);
@@ -312,9 +307,12 @@ const HistoryTrackingMap = () => {
   useEffect(() => {
     const loadHistoryData = async () => {
       try {
+        setIsAutoRefreshing(true);
         setLoading(true);
 
-        // Load basic vehicle data from Tracking API
+        const { start: selectedStart, end: selectedEnd } = getDayWindow(selectedDate);
+
+        // Load basic vehicle data from Tracking API (active trucks only)
         const response = await trackingAPI.getLiveTracking();
         let vehicleData = [];
         
@@ -377,6 +375,74 @@ const HistoryTrackingMap = () => {
           console.error('❌ Tracking API failed, no vehicles loaded');
         }
 
+        // Load deleted trucks that might have history in the selected date range
+        try {
+          const allTrucksResponse = await trucksApi.getAll({ 
+            limit: 1000,
+            includeDeleted: true
+          });
+          const allTrucks = allTrucksResponse?.data?.trucks || allTrucksResponse?.data || [];
+          
+          console.log(`📦 Loaded ${allTrucks.length} total trucks (including deleted) from management API`);
+          
+          // Find trucks that were deleted but might have history in selected date range
+          const deletedTrucks = allTrucks.filter(truck => {
+            const deletedAtField = truck.deleted_at || truck.deletedAt || truck.deleted_at_timestamp;
+            if (!deletedAtField) return false;
+            
+            try {
+              const deletedDate = new Date(deletedAtField);
+              const selectedDate = new Date(selectedStart);
+              return selectedDate <= deletedDate;
+            } catch (e) {
+              return false;
+            }
+          });
+          
+          console.log(`📦 Found ${deletedTrucks.length} deleted trucks with potential history for ${selectedStart.toLocaleDateString()}`);
+          
+          // Add deleted trucks to vehicleData WITHOUT checking history first
+          // History will be loaded later in the loadRouteHistory loop
+          for (const truck of deletedTrucks) {
+            const truckId = String(truck.id || truck.truck_id);
+            
+            if (vehicleData.find(v => v.id === truckId)) {
+              continue;
+            }
+            
+            const deletedAtField = truck.deleted_at || truck.deletedAt || truck.deleted_at_timestamp;
+            
+            vehicleData.push({
+              id: truckId,
+              truckNumber: truck.id || truck.truck_id,
+              truckName: truck.name || truck.truck_name,
+              plateNumber: truck.plate || truck.plate_number,
+              model: truck.model,
+              driver: 'Unknown Driver',
+              position: [0, 0],
+              livePosition: [0, 0],
+              status: 'offline',
+              speed: 0,
+              heading: 0,
+              fuel: 0,
+              battery: 0,
+              signal: 'offline',
+              lastUpdate: new Date(deletedAtField),
+              route: 'Mining Area',
+              load: 'Unknown',
+              tireData: [],
+              device: null,
+              sensorSummary: null,
+              isDeleted: true,
+              deletedAt: new Date(deletedAtField)
+            });
+            
+            console.log(`   ✅ Added deleted truck ${truckId} (${truck.plate || truck.plate_number}) to vehicle list`);
+          }
+        } catch (error) {
+          console.error('⚠️ Could not load deleted trucks:', error.message);
+        }
+
         // Load route history for each vehicle BEFORE setting vehicles state
         const routesData = {};
         const routeVisibilityData = {};
@@ -386,15 +452,18 @@ const HistoryTrackingMap = () => {
           const history = await loadRouteHistory(vehicle.id, '24h');
           console.log(`📍 Route points loaded for ${vehicle.id}:`, history.points.length);
           if (history.points.length > 0) {
-            routesData[vehicle.id] = history.points;
+            // Store route with proper isolation per vehicle
+            routesData[vehicle.id] = [...history.points]; // Clone array to prevent reference issues
             routeVisibilityData[vehicle.id] = true;
             // store meta records for stats
-            routeMetaByVehicleRef.current[vehicle.id] = history.records;
+            routeMetaByVehicleRef.current[vehicle.id] = [...history.records]; // Clone records too
             
             // IMPORTANT: Update vehicle position to first point in history route
             // This ensures marker shows historical start position, not current live position
-            vehicle.position = history.points[0]; // First point = start of route
+            vehicle.position = [history.points[0][0], history.points[0][1]]; // Clone coordinates
             console.log(`📍 Updated ${vehicle.id} marker to history start:`, vehicle.position);
+            console.log(`   First point: [${history.points[0][0]}, ${history.points[0][1]}]`);
+            console.log(`   Last point: [${history.points[history.points.length-1][0]}, ${history.points[history.points.length-1][1]}]`);
           } else {
             console.warn(`⚠️ No route points found for vehicle ${vehicle.id}`);
           }
@@ -405,18 +474,20 @@ const HistoryTrackingMap = () => {
         setRouteVisible(routeVisibilityData);
         // commit meta records from ref to state to avoid stale closure
         setRouteMetaByVehicle((prev) => ({ ...prev, ...routeMetaByVehicleRef.current }));
+        setLastRefreshTime(new Date());
       } catch (error) {
         console.error('Failed to load history data:', error);
       } finally {
         setLoading(false);
+        setIsAutoRefreshing(false);
       }
     };
 
     if (map) {
       loadHistoryData();
-      // Longer interval for history tracking (30 minutes) to avoid interference
-      // History data doesn't change frequently, so less polling is needed
-      const interval = setInterval(loadHistoryData, 30 * 60 * 1000);
+      // Auto-refresh every 60 seconds for today's history
+      // This ensures new route data appears automatically when trucks are added
+      const interval = setInterval(loadHistoryData, 60 * 1000);
       return () => clearInterval(interval);
     }
   }, [map, selectedDate, shiftMode, customStart, customEnd]);
@@ -539,6 +610,13 @@ const HistoryTrackingMap = () => {
         const routeHistory = vehicleRoutes[vehicle.id] || [];
         if (routeHistory.length > 1 && routeVisible[vehicle.id] !== false) {
           const routeColor = routeColors[index % routeColors.length];
+
+          console.log(`🗺️ Drawing route for ${vehicle.id}:`, {
+            points: routeHistory.length,
+            firstPoint: routeHistory[0],
+            lastPoint: routeHistory[routeHistory.length - 1],
+            color: routeColor
+          });
 
           const routeLine = L.polyline(routeHistory, {
             color: routeColor,
@@ -919,6 +997,36 @@ const HistoryTrackingMap = () => {
     };
   }, [map, selectedVehicle, vehicleRoutes]);
 
+  // Load history for a specific truck id (can be used for deleted trucks)
+  const handleLoadById = async (id) => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      const history = await loadRouteHistory(id);
+      if (history && history.points && history.points.length > 0) {
+        setVehicleRoutes((prev) => ({ ...prev, [String(id)]: history.points }));
+        setRouteVisible((prev) => ({ ...prev, [String(id)]: true }));
+        setSelectedVehicle({ id: String(id), plateNumber: String(id) });
+        // center map to first point if available
+        if (map && history.points[0]) {
+          map.setView(history.points[0], 13);
+        }
+      } else {
+        // clear selection if no data
+        setSelectedVehicle(null);
+        setVehicleRoutes((prev) => {
+          const next = { ...prev };
+          delete next[String(id)];
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load by id:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Manual dummy route rendering removed (backend-only)
   useEffect(() => {
     if (!map) return;
@@ -933,6 +1041,21 @@ const HistoryTrackingMap = () => {
           <div className="flex-1 min-w-0">
             <h4 className="text-base font-bold text-gray-900">History Tracking</h4>
             <p className="text-xs text-gray-500 mt-0.5">Pantau riwayat perjalanan kendaraan</p>
+            
+            {/* Auto-refresh indicator */}
+            <div className="flex items-center gap-2 mt-1">
+              {isAutoRefreshing && (
+                <span className="flex items-center gap-1 text-[10px] text-blue-600">
+                  <ArrowPathIcon className="w-3 h-3 animate-spin" />
+                  Refreshing...
+                </span>
+              )}
+              {!isAutoRefreshing && lastRefreshTime && (
+                <span className="text-[10px] text-gray-400">
+                  Last update: {lastRefreshTime.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
           </div>
           {selectedVehicle && (
             <button
@@ -971,38 +1094,79 @@ const HistoryTrackingMap = () => {
                 <div className="text-[10px] mt-0.5 text-blue-600">
                   Viewing historical route playback
                 </div>
+                {/* Show snapshot data if available from current playback point */}
+                {currentPlaybackTimestamp && routeMetaByVehicle[selectedVehicle.id]?.[playbackIndex]?.truckSnapshot && (() => {
+                  const snapshot = routeMetaByVehicle[selectedVehicle.id][playbackIndex].truckSnapshot;
+                  return (
+                    <div className="mt-2 pt-2 border-t border-blue-200 space-y-1">
+                      {snapshot.name && (
+                        <div className="text-[10px] text-blue-600">
+                          📋 <span className="font-medium">Name:</span> {snapshot.name}
+                        </div>
+                      )}
+                      {snapshot.plate && (
+                        <div className="text-[10px] text-blue-600">
+                          🚗 <span className="font-medium">Plate:</span> {snapshot.plate}
+                        </div>
+                      )}
+                      {snapshot.driver && (
+                        <div className="text-[10px] text-blue-600">
+                          👤 <span className="font-medium">Driver:</span> {snapshot.driver}
+                        </div>
+                      )}
+                      {snapshot.vendor && (
+                        <div className="text-[10px] text-blue-600">
+                          🏢 <span className="font-medium">Vendor:</span> {snapshot.vendor}
+                        </div>
+                      )}
+                      <div className="text-[9px] text-blue-500 italic mt-1">
+                        ✓ Data from historical snapshot
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
         )}
         
-        {/* API Status Indicator */}
-        {selectedVehicle && (
-          <div className={`px-3 py-2 rounded-lg border ${
-            isUsingHistoricalData 
-              ? 'bg-green-50 border-green-300' 
-              : 'bg-orange-50 border-orange-300'
-          }`}>
+        {/* API Status Indicator - Only show if using historical data */}
+        {selectedVehicle && isUsingHistoricalData && (
+          <div className="px-3 py-2 rounded-lg border bg-green-50 border-green-300">
             <div className="flex items-start gap-2">
-              <span className="text-base">{isUsingHistoricalData ? '✓' : '⚠️'}</span>
+              <span className="text-base">✓</span>
               <div className="flex-1 min-w-0">
-                <div className={`text-xs font-semibold ${
-                  isUsingHistoricalData ? 'text-green-700' : 'text-orange-700'
-                }`}>
-                  {isUsingHistoricalData ? 'Historical Data Active' : 'Simulated Data Mode'}
+                <div className="text-xs font-semibold text-green-700">
+                  Historical Data Active
                 </div>
-                <div className={`text-[10px] mt-0.5 ${
-                  isUsingHistoricalData ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  {isUsingHistoricalData 
-                    ? 'Akurat dari sensor history database' 
-                    : 'Data variasi simulasi (History API tidak tersedia)'
-                  }
+                <div className="text-[10px] mt-0.5 text-green-600">
+                  Akurat dari sensor history database
                 </div>
               </div>
             </div>
           </div>
         )}
+
+        {/* Deleted truck info: show when truck has deleted_at and affects selected date */}
+        {selectedVehicle && deletedAtByVehicle[String(selectedVehicle.id)] && (() => {
+          const del = new Date(deletedAtByVehicle[String(selectedVehicle.id)]);
+          const { start, end } = getDayWindow(selectedDate);
+          if (del <= start) {
+            return (
+              <div className="px-3 py-2 rounded-lg border bg-red-50 border-red-300 text-red-700 text-sm">
+                This vehicle was deleted on {del.toLocaleString()}. No history is available for the selected period.
+              </div>
+            );
+          }
+          if (del > start && del <= end) {
+            return (
+              <div className="px-3 py-2 rounded-lg border bg-yellow-50 border-yellow-300 text-yellow-800 text-sm">
+                This vehicle was deleted on {del.toLocaleString()}. Only history before that time is available for this date.
+              </div>
+            );
+          }
+          return null;
+        })}
         
         {/* Date & Shift Section */}
         <div className="min-w-0">
@@ -1036,8 +1200,8 @@ const HistoryTrackingMap = () => {
                 className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent bg-white"
                 disabled={loading}
               >
-                <option value="day">Siang (06:00–16:00)</option>
-                <option value="night">Malam (16:00–06:00)</option>
+                <option value="day">Siang (08:00–16:00)</option>
+                <option value="night">Malam (16:00–08:00)</option>
                 <option value="custom">Custom</option>
               </select>
             </div>
@@ -1068,6 +1232,28 @@ const HistoryTrackingMap = () => {
         </div>
 
         <div className="border-t border-gray-200"></div>
+
+        {/* Load by Truck ID (include soft-deleted trucks) */}
+        <div className="min-w-0">
+          <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Load by Truck ID</h5>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Enter truck ID or plate"
+              value={truckSearchId}
+              onChange={(e) => setTruckSearchId(e.target.value)}
+              className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded-md bg-white"
+            />
+            <button
+              onClick={() => handleLoadById(truckSearchId)}
+              className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-md"
+              disabled={loading || !truckSearchId}
+            >
+              Load
+            </button>
+          </div>
+          <div className="text-[11px] text-gray-500 mt-1">Tip: gunakan ID jika kendaraan sudah dihapus untuk melihat riwayat.</div>
+        </div>
 
         {/* Cluster Filter Section */}
         <div className="min-w-0">

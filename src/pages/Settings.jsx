@@ -42,6 +42,7 @@ const Settings = () => {
   const [alertModal, setAlertModal] = useState({ isOpen: false, type: 'info', title: '', message: '' });
   const [forceUpdate, setForceUpdate] = useState(0);
   const [importProgress, setImportProgress] = useState({ show: false, current: 0, total: 0, errors: [] });
+  const [importMode, setImportMode] = useState('skip'); // 'skip' or 'overwrite'
 
   const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
   const BASE_URL = API_URL.replace('/api', ''); // Base URL without /api for static files
@@ -471,11 +472,14 @@ const Settings = () => {
       setImportProgress({ show: true, current: 0, total: users.length, errors: [] });
 
       let successCount = 0;
+      let skippedCount = 0;
+      let updatedCount = 0;
       const errors = [];
 
       for (let i = 0; i < users.length; i++) {
         const user = users[i];
         try {
+          // Try to create new user
           await managementClient.post('/users', {
             name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
             email: user.email,
@@ -488,11 +492,66 @@ const Settings = () => {
           });
           successCount++;
         } catch (error) {
-          errors.push({
-            row: i + 2, // +2 because of header and 0-index
-            email: user.email,
-            error: error.response?.data?.message || 'Failed to create user'
-          });
+          // Check if error is duplicate email
+          const isDuplicate = error.response?.data?.message?.toLowerCase().includes('email') && 
+                             (error.response?.data?.message?.toLowerCase().includes('exists') ||
+                              error.response?.data?.message?.toLowerCase().includes('already') ||
+                              error.response?.data?.message?.toLowerCase().includes('unique'));
+          
+          if (isDuplicate) {
+            if (importMode === 'skip') {
+              // Skip duplicate
+              skippedCount++;
+              errors.push({
+                row: i + 2,
+                email: user.email,
+                error: 'Skipped (email already exists)',
+                type: 'skipped'
+              });
+            } else if (importMode === 'overwrite') {
+              // Try to update existing user
+              try {
+                // First, get existing user by email
+                const existingUsers = await managementClient.get('/users');
+                const existingUser = (existingUsers.data || existingUsers.users || existingUsers || []).find(
+                  u => u.email === user.email
+                );
+                
+                if (existingUser) {
+                  // Update the existing user
+                  await managementClient.put(`/users/${existingUser.id}`, {
+                    name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+                    role: user.role || 'operator',
+                    phone: user.phone || null,
+                    department: user.department || null,
+                    bio: user.bio || null,
+                    status: user.status || 'active'
+                    // Note: password not updated for security
+                  });
+                  updatedCount++;
+                } else {
+                  errors.push({
+                    row: i + 2,
+                    email: user.email,
+                    error: 'User exists but could not be found for update'
+                  });
+                }
+              } catch (updateError) {
+                errors.push({
+                  row: i + 2,
+                  email: user.email,
+                  error: updateError.response?.data?.message || 'Failed to update existing user'
+                });
+              }
+            }
+          } else {
+            // Other errors (not duplicate)
+            errors.push({
+              row: i + 2,
+              email: user.email,
+              error: error.response?.data?.message || 'Failed to create user'
+            });
+          }
         }
         setImportProgress(prev => ({ ...prev, current: i + 1 }));
       }
@@ -503,15 +562,24 @@ const Settings = () => {
       }, 2000);
 
       // Show result
-      const message = errors.length > 0
-        ? `Imported ${successCount} of ${users.length} users. ${errors.length} failed.`
-        : `Successfully imported all ${successCount} users!`;
-
+      const totalProcessed = successCount + updatedCount + skippedCount;
+      const failedCount = errors.filter(e => e.type !== 'skipped').length;
+      
+      let message = `Import Complete:\n\n`;
+      message += `✅ Created: ${successCount}\n`;
+      if (updatedCount > 0) message += `🔄 Updated: ${updatedCount}\n`;
+      if (skippedCount > 0) message += `⏭️ Skipped: ${skippedCount}\n`;
+      if (failedCount > 0) message += `❌ Failed: ${failedCount}\n`;
+      message += `\nTotal: ${users.length} rows`;
+      
+      const hasErrors = failedCount > 0;
+      const errorDetails = errors.filter(e => e.type !== 'skipped');
+      
       setAlertModal({ 
         isOpen: true, 
-        type: errors.length > 0 ? 'warning' : 'success', 
+        type: hasErrors ? 'warning' : 'success', 
         title: 'Import Complete', 
-        message: message + (errors.length > 0 ? '\n\nErrors:\n' + errors.map(e => `Row ${e.row} (${e.email}): ${e.error}`).join('\n') : '')
+        message: message + (hasErrors ? '\n\nErrors:\n' + errorDetails.map(e => `Row ${e.row} (${e.email}): ${e.error}`).join('\n') : '')
       });
 
       // Reset file input
@@ -920,6 +988,18 @@ const Settings = () => {
                             <ArrowDownTrayIcon className="h-4 w-4 mr-1.5" />
                             Export Users
                           </button>
+                          
+                          {/* Import Mode Selector */}
+                          <select
+                            value={importMode}
+                            onChange={(e) => setImportMode(e.target.value)}
+                            className="px-3 py-2 border border-gray-300 shadow-sm text-xs font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            title="Choose how to handle duplicate emails"
+                          >
+                            <option value="skip">Skip Duplicates</option>
+                            <option value="overwrite">Overwrite Duplicates</option>
+                          </select>
+                          
                           <button
                             type="button"
                             onClick={() => csvImportRef.current?.click()}

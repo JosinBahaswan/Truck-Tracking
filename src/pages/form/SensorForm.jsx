@@ -139,9 +139,44 @@ export default function SensorForm() {
       setSaving(true);
       setError(null);
 
-      // Validation
-      if (!form.device_id || !form.sn || !form.tireNo) {
-        setAlertModal({ isOpen: true, type: 'warning', title: 'Validation Error', message: 'Device, Serial Number, and Tire Number are required fields!' });
+      // Frontend Validation dengan pesan yang spesifik
+      const errors = [];
+      
+      if (!form.device_id) {
+        errors.push('• Device is required (please select a device)');
+      }
+      
+      if (!form.sn?.trim()) {
+        errors.push('• Serial Number is required');
+      } else if (form.sn.length < 3) {
+        errors.push('• Serial Number must be at least 3 characters');
+      } else if (form.sn.length > 50) {
+        errors.push('• Serial Number must not exceed 50 characters');
+      } else if (!/^[A-Za-z0-9_-]+$/.test(form.sn)) {
+        errors.push('• Serial Number can only contain letters, numbers, hyphens and underscores');
+      }
+      
+      if (!form.tireNo) {
+        errors.push('• Tire Number is required');
+      } else if (form.tireNo < 1 || form.tireNo > 24) {
+        errors.push('• Tire Number must be between 1-24');
+      }
+      
+      if (form.simNumber && form.simNumber.length > 20) {
+        errors.push('• SIM Number must not exceed 20 characters');
+      }
+      
+      if (form.sensorNo && (form.sensorNo < 1 || form.sensorNo > 100)) {
+        errors.push('• Sensor Number must be between 1-100');
+      }
+
+      if (errors.length > 0) {
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'warning', 
+          title: 'Validation Error', 
+          message: `Please fix the following errors:\n\n${errors.join('\n')}` 
+        });
         setSaving(false);
         return;
       }
@@ -194,7 +229,27 @@ export default function SensorForm() {
     } catch (err) {
       console.error('❌ Failed to save sensor:', err);
       setError(err.message || 'Failed to save sensor');
-      setAlertModal({ isOpen: true, type: 'error', title: 'Error', message: `Failed to save sensor: ${err.message || 'Unknown error'}` });
+      
+      // Handle validation errors from backend
+      if (err?.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+        const errorMessages = err.response.data.errors
+          .map((e) => `• ${e.field}: ${e.message}`)
+          .join('\n');
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'error', 
+          title: 'Validation Error', 
+          message: `Please fix the following errors:\n\n${errorMessages}` 
+        });
+      } else {
+        const errorMsg = err.response?.data?.message || err.message || 'Failed to save sensor data';
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'error', 
+          title: 'Error', 
+          message: `Failed to save sensor:\n${errorMsg}` 
+        });
+      }
     } finally {
       setSaving(false);
     }

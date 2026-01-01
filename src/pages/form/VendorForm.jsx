@@ -82,9 +82,40 @@ export default function VendorForm() {
     try {
       setSaving(true);
 
-      // Validation
-      if (!form.name_vendor) {
-        setAlertModal({ isOpen: true, type: 'warning', title: 'Validation Error', message: 'Vendor Name is required!' });
+      // Frontend Validation dengan pesan yang spesifik
+      const errors = [];
+      
+      if (!form.name_vendor?.trim()) {
+        errors.push('• Vendor Name is required');
+      } else if (form.name_vendor.length < 2) {
+        errors.push('• Vendor Name must be at least 2 characters');
+      } else if (form.name_vendor.length > 255) {
+        errors.push('• Vendor Name must not exceed 255 characters');
+      }
+      
+      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+        errors.push('• Email format is invalid (example: user@domain.com)');
+      }
+      
+      if (form.telephone && form.telephone.length > 50) {
+        errors.push('• Telephone number must not exceed 50 characters');
+      }
+      
+      if (form.address && form.address.length > 500) {
+        errors.push('• Address must not exceed 500 characters');
+      }
+      
+      if (form.contact_person && form.contact_person.length > 255) {
+        errors.push('• Contact Person must not exceed 255 characters');
+      }
+
+      if (errors.length > 0) {
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'warning', 
+          title: 'Validation Error', 
+          message: `Please fix the following errors:\n\n${errors.join('\n')}` 
+        });
         setSaving(false);
         return;
       }
@@ -124,7 +155,27 @@ export default function VendorForm() {
       }, 1500);
     } catch (error) {
       console.error('❌ Failed to save vendor:', error);
-      setAlertModal({ isOpen: true, type: 'error', title: 'Error', message: `Failed to save vendor: ${error.message || 'Unknown error'}` });
+      
+      // Handle validation errors from backend
+      if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+        const errorMessages = error.response.data.errors
+          .map((e) => `• ${e.field}: ${e.message}`)
+          .join('\n');
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'error', 
+          title: 'Validation Error', 
+          message: `Please fix the following errors:\n\n${errorMessages}` 
+        });
+      } else {
+        const errorMsg = error.response?.data?.message || error.message || 'Failed to save vendor data';
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'error', 
+          title: 'Error', 
+          message: `Failed to save vendor:\n${errorMsg}` 
+        });
+      }
     } finally {
       setSaving(false);
     }

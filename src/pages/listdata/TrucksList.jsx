@@ -392,7 +392,7 @@ const TrucksFormList = () => {
     showCancel: false,
   });
 
-  const [setDeleteId] = React.useState(null);
+  const [deleteId, setDeleteId] = React.useState(null);
 
   const showDeleteConfirmation = (id) => {
     setDeleteId(id);

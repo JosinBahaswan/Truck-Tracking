@@ -23,6 +23,7 @@ const MasterData = () => {
   const [importProgress, setImportProgress] = useState({ show: false, current: 0, total: 0, errors: [] });
   const [selectedDataType, setSelectedDataType] = useState('devices');
   const [profile, setProfile] = useState(null);
+  const [importMode, setImportMode] = useState('skip'); // 'skip' or 'overwrite'
   const [transformedItem, setDuplicateMode] = useState(null); // 'replace', 'skip', or null
 
   // Helper to decode JWT token (not currently used but kept for future use)
@@ -306,12 +307,12 @@ const MasterData = () => {
       // Reset duplicate mode and start import
       setDuplicateMode(null);
       
-      // Track user choice across iterations (state is async, use local var)
-      let userChoiceForDuplicates = null;
-      
       setImportProgress({ show: true, current: 0, total: items.length, errors: [] });
 
       let successCount = 0;
+      let skippedCount = 0;
+      let updatedCount = 0;
+      const errors = [];
       
       // Helper: delay to prevent rate limiting
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -473,58 +474,20 @@ const MasterData = () => {
           }
 
           if (isDuplicate) {
-            // Use local variable to track choice (state is async)
-            let choice = userChoiceForDuplicates;
-
-            if (!choice) {
-              setImportProgress({ show: false, current: i, total: items.length, errors: [] });
-
-              const rowIdentifier = item[Object.keys(item)[0]] || `Baris ${i + 2}`;
-
-              const decision = await new Promise((resolve) => {
-                duplicateDecisionRef.current = resolve;
-                setConfirmModal({
-                  isOpen: true,
-                  title: `Data Sudah Ada - ${rowIdentifier}`,
-                  message: `Data pada baris ${i + 2} sudah ada:\n\n${errorMessage}\n\nApa yang ingin Anda lakukan?`,
-                  onConfirm: () => resolve('replace'),
-                  onSkip: () => resolve('skip'),
-                  onCancel: () => resolve('cancel'),
-                });
+            // Use importMode to decide action
+            if (importMode === 'skip') {
+              // Skip this duplicate
+              skippedCount++;
+              errors.push({
+                row: i + 2,
+                identifier: item[Object.keys(item)[0]] || `Row ${i + 2}`,
+                error: 'Skipped (already exists)',
+                type: 'skipped'
               });
-
-              // Close modal
-              setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null, onCancel: null, onSkip: null });
-
-              if (decision === 'cancel') {
-                setImportProgress({ show: false, current: 0, total: 0, errors: [] });
-                if (masterDataImportRef.current) masterDataImportRef.current.value = '';
-                setAlertModal({
-                  isOpen: true,
-                  type: 'info',
-                  title: 'Import Dibatalkan',
-                  message: `Import dibatalkan oleh user.\n\n${successCount} data berhasil di-import sebelum dibatalkan.`
-                });
-                setDuplicateMode(null);
-                return;
-              }
-
-              choice = decision; // now choice is 'replace' or 'skip'
-              userChoiceForDuplicates = choice; // save to local variable for next iterations
-              setDuplicateMode(choice); // also save to state for cleanup
-              
-              console.log(`[Duplicate] User chose: ${choice} - will apply to all remaining duplicates`);
-              
-              // Resume progress bar after modal decision
-              setImportProgress({ show: true, current: i, total: items.length, errors: [] });
-            }
-
-            if (choice === 'skip') {
+              setImportProgress(prev => ({ ...prev, current: i + 1 }));
               continue;
-            }
-
-            if (choice === 'replace') {
-              // attempt to find existing id and update
+            } else if (importMode === 'overwrite') {
+              // Try to update existing record
               try {
                 let existingId = null;
                 console.log(`[Replace] Searching for existing ${type}...`);
@@ -569,20 +532,31 @@ const MasterData = () => {
                   console.log(`[Replace] Updating ${type}/${existingId}...`);
                   await managementClient.put(`${endpoints[type]}/${existingId}`, transformedItem);
                   console.log(`[Replace] Update successful`);
-                  successCount++;
+                  updatedCount++;
                   
                   // Delay to prevent rate limiting (300ms)
                   await delay(300);
-                  continue;
                 } else {
                   // couldn't find existing entity to replace; skip
-                  console.warn('[Replace] Existing entity not found for replace action, skipping row',);
-                  continue;
+                  console.warn('[Replace] Existing entity not found for replace action, skipping row');
+                  skippedCount++;
+                  errors.push({
+                    row: i + 2,
+                    identifier: item[Object.keys(item)[0]] || `Row ${i + 2}`,
+                    error: 'Could not find existing record to update',
+                    type: 'skipped'
+                  });
                 }
               } catch (updateErr) {
                 console.error('[Replace] Update failed during replace action:', updateErr);
-                continue;
+                errors.push({
+                  row: i + 2,
+                  identifier: item[Object.keys(item)[0]] || `Row ${i + 2}`,
+                  error: updateErr.response?.data?.message || 'Update failed'
+                });
               }
+              setImportProgress(prev => ({ ...prev, current: i + 1 }));
+              continue;
             }
           } else {
             // Non-duplicate error: stop import and show error
@@ -611,11 +585,25 @@ const MasterData = () => {
         setImportProgress({ show: false, current: 0, total: 0, errors: [] });
       }, 2000);
 
+      // Build result message
+      const totalProcessed = successCount + updatedCount + skippedCount;
+      const failedCount = errors.filter(e => e.type !== 'skipped').length;
+      
+      let message = `Import Complete:\n\n`;
+      message += `✅ Created: ${successCount}\n`;
+      if (updatedCount > 0) message += `🔄 Updated: ${updatedCount}\n`;
+      if (skippedCount > 0) message += `⏭️ Skipped: ${skippedCount}\n`;
+      if (failedCount > 0) message += `❌ Failed: ${failedCount}\n`;
+      message += `\nTotal rows: ${items.length}`;
+      
+      const hasErrors = failedCount > 0;
+      const errorDetails = errors.filter(e => e.type !== 'skipped');
+
       setAlertModal({ 
         isOpen: true, 
-        type: 'success', 
+        type: hasErrors ? 'warning' : 'success', 
         title: 'Import Complete', 
-        message: `Successfully imported ${successCount} ${type}!`
+        message: message + (hasErrors ? '\n\nErrors:\n' + errorDetails.map(e => `Row ${e.row} (${e.identifier}): ${e.error}`).join('\n') : '')
       });
 
       if (masterDataImportRef.current) {
@@ -797,9 +785,29 @@ const MasterData = () => {
                   <ArrowUpTrayIcon className="h-6 w-6 text-indigo-600 mr-2" />
                   <h4 className="text-sm font-semibold text-indigo-900">Import Data</h4>
                 </div>
-                <p className="text-xs text-indigo-700 mb-4">
+                <p className="text-xs text-indigo-700 mb-3">
                   Upload CSV file to create multiple {selectedDataType}
                 </p>
+                
+                {/* Import Mode Selector */}
+                <div className="mb-3">
+                  <label className="block text-xs font-medium text-indigo-900 mb-1.5">
+                    Duplicate Handling:
+                  </label>
+                  <select
+                    value={importMode}
+                    onChange={(e) => setImportMode(e.target.value)}
+                    className="w-full px-3 py-2 border border-indigo-300 rounded-lg text-xs font-medium text-indigo-800 bg-white hover:bg-indigo-50 transition-colors focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    title="Choose how to handle duplicate records"
+                  >
+                    <option value="skip">⏭️ Skip Duplicates</option>
+                    <option value="overwrite">🔄 Overwrite Duplicates</option>
+                  </select>
+                  <p className="text-[10px] text-indigo-600 mt-1">
+                    {importMode === 'skip' ? 'Existing records will be skipped' : 'Existing records will be updated'}
+                  </p>
+                </div>
+                
                 <button
                   onClick={() => masterDataImportRef.current?.click()}
                   className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"

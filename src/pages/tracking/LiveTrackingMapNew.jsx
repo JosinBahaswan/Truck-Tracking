@@ -23,6 +23,7 @@ const LiveTrackingMapNew = () => {
     new Set(['1-199', '200-399', '400-599', '600-799', '800-999']) // Default: semua cluster aktif
   );
   const [vehicleRoutes, setVehicleRoutes] = useState({}); // State untuk menyimpan history rute tiap kendaraan
+  const [vehicleDevices, setVehicleDevices] = useState({}); // Track device_id per truck untuk detect reassignment
   const [isTrackingActive] = useState(true); // State tracking aktif/pause (default aktif)
   const [timeRange] = useState('24h'); // State range waktu untuk history (default 24 jam)
   const [, setSelectedDevice] = useState(null); // State untuk device IoT yang dipilih
@@ -282,6 +283,34 @@ const LiveTrackingMapNew = () => {
           
           return newRoutes;
         });
+        
+        // 🔍 DETECT DEVICE REASSIGNMENT and clear old routes
+        setVehicleDevices((prevDevices) => {
+          const newDevices = {};
+          
+          items.forEach((vehicle) => {
+            const currentDeviceId = vehicle.device?.id;
+            const previousDeviceId = prevDevices[vehicle.id];
+            
+            if (currentDeviceId) {
+              // Check if device changed for this truck
+              if (previousDeviceId && previousDeviceId !== currentDeviceId) {
+                console.log(`🔄 DEVICE CHANGED for truck ${vehicle.id}: ${previousDeviceId} → ${currentDeviceId}`);
+                console.log(`🧹 Clearing old route to prevent route mixing...`);
+                
+                // Clear route for this truck since device changed
+                setVehicleRoutes(prev => ({
+                  ...prev,
+                  [vehicle.id]: [vehicle.position] // Start fresh with current position only
+                }));
+              }
+              
+              newDevices[vehicle.id] = currentDeviceId;
+            }
+          });
+          
+          return newDevices;
+        });
       } else {
         console.error('❌ Tracking API failed, no vehicles loaded');
         throw new Error(response?.message || 'Failed to load vehicles from Tracking API');
@@ -484,6 +513,37 @@ const LiveTrackingMapNew = () => {
     // Cek apakah shift atau hari sudah berganti
     const shiftChanged = checkShiftDateChange();
     
+    // 🔍 Check if device changed for this truck (device reassignment detection)
+    setVehicleDevices((prevDevices) => {
+      const currentDeviceId = truck.device?.id;
+      const previousDeviceId = prevDevices[id];
+      
+      if (currentDeviceId && previousDeviceId && previousDeviceId !== currentDeviceId) {
+        console.log(`🔄 DEVICE CHANGED via WebSocket for truck ${id}: ${previousDeviceId} → ${currentDeviceId}`);
+        console.log(`🧹 Clearing old route to prevent mixing...`);
+        
+        // Clear route immediately
+        setVehicleRoutes(prev => ({
+          ...prev,
+          [id]: [vehicleData.position] // Fresh start with current position only
+        }));
+        
+        return {
+          ...prevDevices,
+          [id]: currentDeviceId
+        };
+      }
+      
+      if (currentDeviceId) {
+        return {
+          ...prevDevices,
+          [id]: currentDeviceId
+        };
+      }
+      
+      return prevDevices;
+    });
+    
     // Update vehicle routes
     setVehicleRoutes(prevRoutes => {
       if (shiftChanged) {
@@ -617,9 +677,10 @@ const LiveTrackingMapNew = () => {
     const checkInterval = setInterval(() => {
       const shiftChanged = checkShiftDateChange();
       if (shiftChanged) {
-        console.log('⏰ Shift/Date changed detected - clearing routes and reloading data');
-        // Clear all routes
+        console.log('⏰ Shift/Date changed detected - clearing routes, device tracking, and reloading data');
+        // Clear all routes and device tracking
         setVehicleRoutes({});
+        setVehicleDevices({}); // Force redetection of devices
         // Reload data
         loadVehiclesFromBackend();
       }
@@ -631,6 +692,10 @@ const LiveTrackingMapNew = () => {
   // Initialize shift tracking and clear old routes on mount
   useEffect(() => {
     console.log('🚀 Initializing LiveTracking for current shift/date');
+    console.log('🧹 Force clearing all routes and device tracking on page load');
+    // Force clear everything on page load to prevent stale data
+    setVehicleRoutes({});
+    setVehicleDevices({});
     const currentShift = getCurrentShiftDate();
     currentShiftDateRef.current = currentShift;
     console.log(`📅 Current shift: ${currentShift}`);
@@ -776,8 +841,11 @@ const LiveTrackingMapNew = () => {
       const existing = markersRef.current; // Ambil markers yang sudah ada
       const seen = new Set(); // Set untuk tracking marker yang masih digunakan
 
-      vehicles.forEach((vehicle) => {
-        // Loop setiap kendaraan
+      // Filter vehicles berdasarkan cluster selection untuk mendapatkan nomor urut yang benar
+      const filteredVehicles = vehicles.filter(vehicle => inSelectedCluster(vehicle.id));
+
+      filteredVehicles.forEach((vehicle, visualIndex) => {
+        // Loop setiap kendaraan dengan index urut visual
         const colors = {
           // Palet warna berdasarkan status
           active: '#10b981', // Hijau untuk active
@@ -786,27 +854,28 @@ const LiveTrackingMapNew = () => {
           offline: '#6b7280', // Abu-abu untuk offline
         };
 
-        if (!inSelectedCluster(vehicle.id)) {
-          // Jika kendaraan tidak dalam cluster yang dipilih
-          return; // Skip kendaraan ini
-        }
-
-        const truckNum = vehicle.truckNumber || extractTruckNumber(vehicle.id) || ''; // Ekstrak nomor truk
+        const truckNum = vehicle.truckNumber || extractTruckNumber(vehicle.id) || ''; // Ekstrak nomor truk dari database (fixed number)
+        const visualNum = visualIndex + 1; // Nomor urut visual (#1, #2, #3, dst)
+        
+        // Simpan visualNum ke vehicle object untuk digunakan di card info
+        vehicle._visualNumber = visualNum;
+        
         const buildIcon = (
           status // Fungsi untuk build custom icon
         ) =>
           L.divIcon({
             html: ` 
             <div style="position: relative;">
-              <div style="background: ${colors[status] || colors.offline}; color: #ffffff; border: 2px solid #ffffff; border-radius: 6px; padding: 2px 6px; min-width: 26px; height: 20px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
-                ${truckNum}
+              <div style="background: ${colors[status] || colors.offline}; color: #ffffff; border: 2px solid #ffffff; border-radius: 6px; padding: 2px 6px; min-width: 32px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); line-height: 1;">
+                <span style="font-size: 9px; opacity: 0.8; margin-right: 2px;">#${visualNum}</span>
+                <span style="font-size: 11px;">${truckNum}</span>
               </div>
               <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid ${colors[status] || colors.offline}; margin: 0 auto; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));"></div>
             </div>
-          `, // HTML untuk icon dengan nomor truk dan pointer
+          `, // HTML untuk icon dengan nomor urut visual dan nomor truk tetap
             className: 'custom-truck-icon', // Class CSS
-            iconSize: [28, 28], // Ukuran icon
-            iconAnchor: [14, 28], // Anchor point (bottom center)
+            iconSize: [36, 32], // Ukuran icon sedikit lebih besar untuk menampung 2 nomor
+            iconAnchor: [18, 32], // Anchor point (bottom center)
           });
 
         let marker = existing[vehicle.id]; // Cek apakah marker sudah ada
@@ -858,6 +927,29 @@ const LiveTrackingMapNew = () => {
               // Ambil library Leaflet
 
               let routeHistory = vehicleRoutes[vehicle.id] || []; // Ambil history rute dari state
+              
+              // 🔍 CRITICAL FIX: Check if current device matches the one we're tracking
+              // If device changed (reassignment), clear old route and reload from backend
+              const currentDeviceId = vehicle.device?.id;
+              const trackedDeviceId = vehicleDevices[vehicle.id];
+              
+              if (currentDeviceId && trackedDeviceId && currentDeviceId !== trackedDeviceId) {
+                console.log(`🔄 Device mismatch detected! Tracked: ${trackedDeviceId}, Current: ${currentDeviceId}`);
+                console.log(`🧹 Clearing old route and reloading from backend...`);
+                routeHistory = []; // Force clear route history
+                
+                // Update tracked device
+                setVehicleDevices(prev => ({
+                  ...prev,
+                  [vehicle.id]: currentDeviceId
+                }));
+              } else if (currentDeviceId && !trackedDeviceId) {
+                // First time seeing this device for this truck, record it
+                setVehicleDevices(prev => ({
+                  ...prev,
+                  [vehicle.id]: currentDeviceId
+                }));
+              }
 
               if (routeHistory.length <= 1) {
                 // Jika rute belum ada/kurang, coba load dari backend untuk shift saat ini
@@ -1057,14 +1149,14 @@ const LiveTrackingMapNew = () => {
   useEffect(() => {
     if (!map || !selectedVehicle || !showVehicleCard) return; // Only update if vehicle card is shown
     
-    const routeHistory = vehicleRoutes[selectedVehicle.id];
+    let routeHistory = vehicleRoutes[selectedVehicle.id];
     if (!routeHistory || routeHistory.length === 0) return; // Need at least 1 point
     
     try {
       const L = window.L || require('leaflet'); // eslint-disable-line no-undef
       
-      // CRITICAL FIX: Always use current marker position as the last point
-      // This ensures the route line NEVER extends beyond the marker icon
+      // 🔥 CRITICAL FIX: Filter out any stale route points that are too far from current position
+      // This prevents the long blue line issue when old data gets mixed
       const currentMarker = markersRef.current[selectedVehicle.id];
       if (!currentMarker) {
         console.warn(`⚠️ No marker found for ${selectedVehicle.id}`);
@@ -1073,6 +1165,39 @@ const LiveTrackingMapNew = () => {
       
       const markerPos = currentMarker.getLatLng();
       const currentPosition = [markerPos.lat, markerPos.lng];
+      
+      // Filter route points: only keep points within reasonable distance (e.g., 50km from current position)
+      // This removes any stale data from old device assignment
+      const MAX_DISTANCE_KM = 50;
+      const filteredRoute = routeHistory.filter((point, idx) => {
+        // Always keep first and last point
+        if (idx === 0 || idx === routeHistory.length - 1) return true;
+        
+        // Calculate distance from current position
+        const R = 6371; // Earth radius in km
+        const dLat = (point[0] - currentPosition[0]) * Math.PI / 180;
+        const dLon = (point[1] - currentPosition[1]) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(currentPosition[0] * Math.PI / 180) * Math.cos(point[0] * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+        
+        return distance <= MAX_DISTANCE_KM;
+      });
+      
+      // If too many points filtered out, clear the entire route (likely stale data)
+      if (filteredRoute.length < routeHistory.length * 0.5 && routeHistory.length > 10) {
+        console.warn(`🧹 Filtered out ${routeHistory.length - filteredRoute.length} stale route points for ${selectedVehicle.id}`);
+        // Clear stale route from state
+        setVehicleRoutes(prev => ({
+          ...prev,
+          [selectedVehicle.id]: [currentPosition]
+        }));
+        return;
+      }
+      
+      routeHistory = filteredRoute;
       
       // Build final route: all history points except last + current marker position
       // This guarantees the line ends exactly at the marker
@@ -1176,6 +1301,9 @@ const LiveTrackingMapNew = () => {
           ></div>
           <span className="text-xs text-gray-700 font-medium">
             {isTrackingActive ? 'LIVE' : 'PAUSED'} {/* Label status */}
+          </span>
+          <span className="text-xs text-gray-500 font-normal">
+            • {vehicles.filter(v => inSelectedCluster(v.id)).length} trucks {/* Jumlah kendaraan yang ditampilkan sesuai filter */}
           </span>
         </div>
         {/* Status Indikator: API Online/Offline */}
@@ -1302,16 +1430,24 @@ const LiveTrackingMapNew = () => {
                 <div>
                   {' '}
                   {/* Info kendaraan */}
-                  <h4 className="text-lg font-semibold text-gray-900 leading-tight">
-                    {selectedVehicle.truckName || selectedVehicle.plateNumber || selectedVehicle.id} {/* Nama truck */}
-                  </h4>
-                  <p className="text-sm text-gray-500">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
+                      {selectedVehicle._visualNumber || '?'}
+                    </span>
+                    <h4 className="text-lg font-semibold text-gray-900 leading-tight">
+                      {selectedVehicle.truckName || selectedVehicle.plateNumber || selectedVehicle.id} {/* Nama truck */}
+                    </h4>
+                  </div>
+                  <p className="text-sm text-gray-500 ml-8">
                     {selectedVehicle.plateNumber && <span className="font-medium">{selectedVehicle.plateNumber}</span>}
+                    {selectedVehicle.truckNumber && (
+                      <span className="ml-2 text-gray-400">• Truck #{selectedVehicle.truckNumber}</span>
+                    )}
                     {selectedVehicle.driver?.name && (
                       <span className="ml-2">• Driver: {selectedVehicle.driver.name}</span>
                     )}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-gray-400 mt-1 ml-8">
                     <ClockIcon className="w-3 h-3 inline mr-1" />
                     Shift {getCurrentShift() === 'day' ? 'Siang' : 'Malam'} • Rute hari ini
                   </p>

@@ -294,8 +294,27 @@ export default function TruckForm() {
       }, 1500);
     } catch (error) {
       console.error('❌ Failed to save truck:', error);
-      const errorMsg = error.message || error.response?.data?.message || 'Unknown error';
-      setAlertModal({ isOpen: true, type: 'error', title: 'Error', message: `Failed to save truck:\n${errorMsg}` });
+      
+      // Handle validation errors from backend
+      if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+        const errorMessages = error.response.data.errors
+          .map((e) => `• ${e.field}: ${e.message}`)
+          .join('\n');
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'error', 
+          title: 'Validation Error', 
+          message: `Please fix the following errors:\n\n${errorMessages}` 
+        });
+      } else {
+        const errorMsg = error.response?.data?.message || error.message || 'Failed to save truck data';
+        setAlertModal({ 
+          isOpen: true, 
+          type: 'error', 
+          title: 'Error', 
+          message: `Failed to save truck:\n${errorMsg}` 
+        });
+      }
     }
   };
 
