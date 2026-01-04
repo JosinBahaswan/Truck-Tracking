@@ -366,7 +366,7 @@ const Alerts = () => {
                     setDateFrom(date);
                     setPage(1);
                   }}
-                  placeholder="Tanggal Awal"
+                  placeholder="Start Date"
                   maxDate={dateTo || new Date()}
                   className="w-40"
                 />
@@ -377,7 +377,7 @@ const Alerts = () => {
                     setDateTo(date);
                     setPage(1);
                   }}
-                  placeholder="Tanggal Akhir"
+                  placeholder="End Date"
                   minDate={dateFrom}
                   maxDate={new Date()}
                   className="w-40"

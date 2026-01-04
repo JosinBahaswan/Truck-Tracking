@@ -23,6 +23,9 @@ const TailwindHeader = ({ setSidebarOpen }) => {
   const { notifications, unreadCount, markAsRead } = useAlertNotifications();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
+  const API_URL = import.meta.env.VITE_API_BASE_URL;
+  const BASE_URL = API_URL.replace('/api', ''); // Base URL without /api for static files
+
   useEffect(() => {
     const onKey = (e) => {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
@@ -39,6 +42,9 @@ const TailwindHeader = ({ setSidebarOpen }) => {
   }, []);
 
   const displayName = user?.name || user?.username || 'John Doe';
+  const profilePhoto = user?.avatar 
+    ? (user.avatar.startsWith('http') ? user.avatar : `${BASE_URL}${user.avatar}`)
+    : null;
   const initials = (displayName || 'JD')
     .split(' ')
     .map((s) => s[0])
@@ -207,9 +213,21 @@ const TailwindHeader = ({ setSidebarOpen }) => {
             <Menu as="div" className="relative z-1003">
               <Menu.Button className="-m-1.5 flex items-center p-1.5" aria-label="Open user menu">
                 <span className="sr-only">Open user menu</span>
-                <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center">
-                  <span className="text-sm font-medium text-white">{initials}</span>
-                </div>
+                {profilePhoto ? (
+                  <img
+                    src={profilePhoto}
+                    alt={displayName}
+                    className="h-8 w-8 rounded-full object-cover border-2 border-indigo-200"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=4f46e5&color=fff&size=128`;
+                    }}
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center">
+                    <span className="text-sm font-medium text-white">{initials}</span>
+                  </div>
+                )}
                 <span className="hidden lg:flex lg:items-center">
                   <span
                     className="ml-4 text-sm font-semibold leading-6 text-gray-900"

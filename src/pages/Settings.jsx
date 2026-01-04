@@ -235,11 +235,22 @@ const Settings = () => {
       const fd = new FormData();
       fd.append('avatar', file);
       // managementClient automatically injects token
-      await managementClient.post('/users/me/avatar', fd, {
+      const response = await managementClient.post('/users/me/avatar', fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       await fetchProfile();
+      
+      // Update user in localStorage
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      if (response.data?.avatar) {
+        currentUser.avatar = response.data.avatar;
+        localStorage.setItem('user', JSON.stringify(currentUser));
+      }
+      
       setAlertModal({ isOpen: true, type: 'success', title: 'Success!', message: 'Avatar uploaded successfully' });
+      
+      // Force page reload to update header
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       console.error('Failed to upload avatar:', error);
       setAlertModal({ isOpen: true, type: 'error', title: 'Upload Failed', message: error.response?.data?.message || 'Failed to upload avatar' });
@@ -252,7 +263,16 @@ const Settings = () => {
       // managementClient automatically injects token
       await managementClient.delete('/users/me/avatar');
       await fetchProfile();
+      
+      // Update user in localStorage
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      currentUser.avatar = null;
+      localStorage.setItem('user', JSON.stringify(currentUser));
+      
       setAlertModal({ isOpen: true, type: 'success', title: 'Success!', message: 'Avatar deleted successfully' });
+      
+      // Force page reload to update header
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       console.error('Failed to delete avatar:', error);
       setAlertModal({ isOpen: true, type: 'error', title: 'Delete Failed', message: error.response?.data?.message || 'Failed to delete avatar' });
@@ -751,8 +771,11 @@ const Settings = () => {
                 </div> */}
                 
                 <div className="flex flex-col items-center">
-                  <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                    <div className="h-28 w-28 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-3xl font-bold border-4 border-white shadow-md overflow-hidden">
+                  <div className="relative group">
+                    <div 
+                      className="h-28 w-28 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-3xl font-bold border-4 border-white shadow-md overflow-hidden cursor-pointer"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
                       {profile?.avatar ? (
                         <img
                           src={profile.avatar.startsWith('http') ? profile.avatar : `${BASE_URL}${profile.avatar}`}
@@ -770,7 +793,7 @@ const Settings = () => {
                         </span>
                       )}
                     </div>
-                    <div className="absolute bottom-1 right-1 bg-white rounded-full p-1.5 shadow-md border border-gray-200 text-gray-500 group-hover:text-indigo-600 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                    <div className="absolute bottom-1 right-1 bg-white rounded-full p-1.5 shadow-md border border-gray-200 text-gray-500 group-hover:text-indigo-600 transition-colors pointer-events-none">
                       <PencilSquareIcon className="h-4 w-4" />
                     </div>
                   </div>

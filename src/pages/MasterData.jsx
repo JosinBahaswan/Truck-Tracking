@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import managementClient from '../services/management/config';
 import TailwindLayout from '../components/layout/TailwindLayout';
 import AlertModal from '../components/common/AlertModal';
+import DuplicateModal from '../components/common/DuplicateModal';
 import {
   CircleStackIcon,
   TruckIcon,
@@ -17,14 +18,23 @@ import {
 
 const MasterData = () => {
   const masterDataImportRef = useRef(null);
-  const duplicateDecisionRef = useRef(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, type: 'info', title: '', message: '' });
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, onCancel: null, onSkip: null });
   const [importProgress, setImportProgress] = useState({ show: false, current: 0, total: 0, errors: [] });
   const [selectedDataType, setSelectedDataType] = useState('devices');
   const [profile, setProfile] = useState(null);
-  const [importMode, setImportMode] = useState('skip'); // 'skip' or 'overwrite'
-  const [transformedItem, setDuplicateMode] = useState(null); // 'replace', 'skip', or null
+  
+  // Duplicate handling states
+  const [duplicateModal, setDuplicateModal] = useState({ 
+    isOpen: false, 
+    itemName: '', 
+    dataType: '', 
+    errorMessage: '',
+    onSkip: null, 
+    onOverwrite: null, 
+    onCancel: null 
+  });
+  const [applyToAll, setApplyToAll] = useState(false);
+  const [userDecision, setUserDecision] = useState(null); // 'skip' or 'overwrite' or null
 
   // Helper to decode JWT token (not currently used but kept for future use)
   // eslint-disable-next-line no-unused-vars
@@ -96,23 +106,23 @@ const MasterData = () => {
     const templates = {
       devices: {
         headers: ['sn', 'truck_id', 'sim_number', 'status'],
-        example: ['DEV001', '1', '08123456789', 'active']
+        example: ['TPMS-DEV-001', '1', '6281234567890', 'active']
       },
       sensors: {
         headers: ['sn', 'device_id', 'tireNo', 'simNumber', 'sensorNo', 'status'],
-        example: ['SENS001', '1', '1', '08123456789', '1', 'active']
+        example: ['SENS-T1-FL', '1', '1', '6281234560001', 'FL', 'active']
       },
       trucks: {
         headers: ['name', 'vin', 'plate', 'model', 'year', 'type', 'vendor_id', 'status'],
-        example: ['TRUCK-01', 'TR001', 'B 1234 XYZ', 'Hino Ranger', '2023', 'Dump Truck', '', 'active']
+        example: ['TRUCK-HD001', 'HD001', 'KT 7890 AB', 'HD785-7', '2023', 'Haul Truck', '1', 'active']
       },
       drivers: {
         headers: ['name', 'license_number', 'license_type', 'license_expiry', 'phone', 'email', 'vendor_id', 'status'],
-        example: ['Ahmad Supriadi', 'SIM-A-12345', 'A', '2025-12-31', '+62 812 3456 7890', 'ahmad@company.com', '', 'aktif']
+        example: ['Ahmad Supriadi', 'B2-12345-2023', 'B2', '2026-06-30', '+62 812 3456 7890', 'ahmad.supriadi@email.com', '1', 'aktif']
       },
       vendors: {
         headers: ['name_vendor', 'address', 'telephone', 'email', 'contact_person'],
-        example: ['PT Mitra Sejahtera', 'Jl. Industri No. 123 Jakarta', '021-12345678', 'info@mitrasejahtera.com', 'Budi Santoso']
+        example: ['PT Mitra Transportasi Nusantara', 'Jl. Raya Industri No. 45 Balikpapan', '0542-7654321', 'info@mitratrans.co.id', 'Budi Setiawan']
       }
     };
     return templates[type] || templates.devices;
@@ -304,18 +314,42 @@ const MasterData = () => {
         return;
       }
 
-      // Reset duplicate mode and start import
-      setDuplicateMode(null);
+      // Reset states
+      setApplyToAll(false);
+      setUserDecision(null);
       
       setImportProgress({ show: true, current: 0, total: items.length, errors: [] });
 
       let successCount = 0;
       let skippedCount = 0;
       let updatedCount = 0;
-      const errors = [];
       
       // Helper: delay to prevent rate limiting
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+      
+      // Helper: Show duplicate modal and wait for user decision
+      const askUserDecision = (itemName, errorMsg) => {
+        return new Promise((resolve) => {
+          setDuplicateModal({
+            isOpen: true,
+            itemName,
+            dataType: type,
+            errorMessage: errorMsg,
+            onSkip: () => {
+              setDuplicateModal({ ...duplicateModal, isOpen: false });
+              resolve('skip');
+            },
+            onOverwrite: () => {
+              setDuplicateModal({ ...duplicateModal, isOpen: false });
+              resolve('overwrite');
+            },
+            onCancel: () => {
+              setDuplicateModal({ ...duplicateModal, isOpen: false });
+              resolve('cancel');
+            }
+          });
+        });
+      };
 
       const endpoints = {
         devices: '/iot/devices',
@@ -327,10 +361,11 @@ const MasterData = () => {
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
+        // Transform data based on type to match backend expectations (at loop level for access in catch block)
+        let transformedItem = { ...item };
+        
         try {
-          // Transform data based on type to match backend expectations
-          let transformedItem = { ...item };
-          
+          // Apply transformations
           if (type === 'devices') {
             if (transformedItem.truck_id) transformedItem.truck_id = parseInt(transformedItem.truck_id);
             if (!transformedItem.sim_number) delete transformedItem.sim_number;
@@ -356,7 +391,7 @@ const MasterData = () => {
             if (!transformedItem.phone) delete transformedItem.phone;
             if (!transformedItem.email) delete transformedItem.email;
             if (!transformedItem.vendor_id) delete transformedItem.vendor_id;
-            if (!transformedItem.status) transformedItem.status = 'aktif';
+            if (!transformedItem.status) transformedItem.status = 'active';
           } else if (type === 'vendors') {
             if (!transformedItem.address) delete transformedItem.address;
             if (!transformedItem.telephone) delete transformedItem.telephone;
@@ -366,17 +401,19 @@ const MasterData = () => {
           
           // Client-side pre-validation: sensors must have device_id
           if (type === 'sensors') {
-            if (!transformedItem.device_id) {
-              const rowIdentifier = item[Object.keys(item)[0]] || `Baris ${i + 2}`;
+            if (!transformedItem.device_id || isNaN(transformedItem.device_id)) {
+              const rowIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
+              console.log('[Import] Sensor validation failed:', { row: i + 2, item, transformedItem });
               setImportProgress({ show: false, current: 0, total: items.length, errors: [] });
               if (masterDataImportRef.current) masterDataImportRef.current.value = '';
               setAlertModal({
                 isOpen: true,
                 type: 'error',
-                title: 'Import Gagal',
-                message: `Gagal import pada baris ${i + 2} (${rowIdentifier}): Kolom 'device_id' kosong atau tidak valid. Pastikan Device sudah terdaftar dan isi kolom 'device_id' pada CSV.`
+                title: 'Import Failed - Invalid Device ID',
+                message: `Import failed at row ${i + 2} (${rowIdentifier}):\n\nColumn 'device_id' is empty or invalid.\n\nReceived value: ${item.device_id || '(empty)'}\nParsed value: ${transformedItem.device_id || '(empty)'}\n\nPlease:\n1. Make sure the Device is already imported to the database\n2. Fill in the correct 'device_id' number in the CSV\n3. Import Devices before importing Sensors`
               });
-              setDuplicateMode(null);
+              setUserDecision(null);
+              setApplyToAll(false);
               return;
             }
           }
@@ -394,9 +431,11 @@ const MasterData = () => {
           if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
             const validationErrors = error.response.data.errors;
             errorDetails = validationErrors.map(err =>
-              `• ${err.field}: ${err.message}${err.value !== undefined ? ` (nilai: "${err.value}")` : ''}`
+              `• ${err.field}: ${err.message}${err.value !== undefined ? ` (current value: "${err.value}")` : ''}`
             ).join('\n');
             errorMessage = 'Validation Error';
+            
+            console.log('[Import] Validation errors detected:', errorDetails);
 
             // If validation error indicates missing device_id, show friendly message
             const missingDeviceId = validationErrors.some(e => {
@@ -406,16 +445,17 @@ const MasterData = () => {
             });
 
             if (missingDeviceId) {
-              const rowIdentifier = item[Object.keys(item)[0]] || `Baris ${i + 2}`;
+              const rowIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
               setImportProgress({ show: false, current: 0, total: 0, errors: [] });
               if (masterDataImportRef.current) masterDataImportRef.current.value = '';
               setAlertModal({
                 isOpen: true,
                 type: 'error',
-                title: 'Import Gagal',
-                message: `Gagal import pada baris ${i + 2} (${rowIdentifier}): Kolom 'device_id' belum tersedia atau bernilai kosong. Pastikan Device sudah terdaftar lalu coba lagi.`
+                title: 'Import Failed - Missing Device',
+                message: `Import failed at row ${i + 2} (${rowIdentifier}):\n\n❌ Validation Errors:\n${errorDetails}\n\n💡 Make sure the Device is registered and try again.`
               });
-              setDuplicateMode(null);
+              setUserDecision(null);
+              setApplyToAll(false);
               return;
             }
           } else if (error.response?.data?.message) {
@@ -426,22 +466,43 @@ const MasterData = () => {
             errorMessage = error.message;
           }
 
-          // Detect "Device not found" error from backend and show friendly guidance
-          const deviceNotFoundRegex = /device not found[:\s]*([0-9]+)/i;
-          const deviceMsgSource = (error.response?.data?.message || error.response?.data?.error || errorMessage || '').toString();
-          const deviceMatch = deviceNotFoundRegex.exec(deviceMsgSource);
-          if (deviceMatch) {
-            const missingDeviceId = deviceMatch[1];
-            const rowIdentifier = item[Object.keys(item)[0]] || `Baris ${i + 2}`;
+          // Detect "Truck not found" error from backend
+          const truckNotFoundRegex = /truck not found[:\s]*([0-9]+)/i;
+          const truckMsgSource = (error.response?.data?.message || error.response?.data?.error || errorMessage || '').toString();
+          const truckMatch = truckNotFoundRegex.exec(truckMsgSource);
+          if (truckMatch) {
+            const _missingTruckId = truckMatch[1];
+            const rowIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
             setImportProgress({ show: false, current: 0, total: 0, errors: [] });
             if (masterDataImportRef.current) masterDataImportRef.current.value = '';
             setAlertModal({
               isOpen: true,
               type: 'error',
-              title: 'Import Gagal',
-              message: `Gagal import pada baris ${i + 2} (${rowIdentifier}): Device dengan ID ${missingDeviceId} tidak ditemukan.\n\nSolusi: buat Device dengan ID ${missingDeviceId} di menu Devices, atau perbaiki kolom 'device_id' pada CSV agar mengacu ke Device yang benar.`
+              title: 'Import Failed - Truck Not Found',
+              message: `${errorMessage}\n\nRow: ${i + 2} (${rowIdentifier})\n\nPlease import Trucks first before importing Devices, or update the truck_id in your CSV.`
             });
-            setDuplicateMode(null);
+            setUserDecision(null);
+            setApplyToAll(false);
+            return;
+          }
+
+          // Detect "Device not found" error from backend
+          const deviceNotFoundRegex = /device not found[:\s]*([0-9]+)/i;
+          const deviceMsgSource = (error.response?.data?.message || error.response?.data?.error || errorMessage || '').toString();
+          const deviceMatch = deviceNotFoundRegex.exec(deviceMsgSource);
+          if (deviceMatch) {
+            const _missingDeviceId = deviceMatch[1];
+            const rowIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
+            setImportProgress({ show: false, current: 0, total: 0, errors: [] });
+            if (masterDataImportRef.current) masterDataImportRef.current.value = '';
+            setAlertModal({
+              isOpen: true,
+              type: 'error',
+              title: 'Import Failed - Device Not Found',
+              message: `${errorMessage}\n\nRow: ${i + 2} (${rowIdentifier})\n\nPlease import Devices first before importing Sensors, or update the device_id in your CSV.`
+            });
+            setUserDecision(null);
+            setApplyToAll(false);
             return;
           }
           // Check duplicate condition
@@ -474,86 +535,103 @@ const MasterData = () => {
           }
 
           if (isDuplicate) {
-            // Use importMode to decide action
-            if (importMode === 'skip') {
+            // Handle duplicate - check if user has already decided for all
+            let decision = userDecision;
+            
+            if (!applyToAll || !decision) {
+              // Ask user what to do
+              const itemIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
+              decision = await askUserDecision(itemIdentifier, errorMessage);
+              
+              if (decision === 'cancel') {
+                // User cancelled, stop import
+                setImportProgress({ show: false, current: 0, total: 0, errors: [] });
+                if (masterDataImportRef.current) masterDataImportRef.current.value = '';
+                setAlertModal({
+                  isOpen: true,
+                  type: 'info',
+                  title: 'Import Cancelled',
+                  message: `Import cancelled by user.\n\n${successCount + updatedCount} record(s) were imported before cancellation.`
+                });
+                return;
+              }
+              
+              // If apply to all is checked, save this decision
+              if (applyToAll) {
+                setUserDecision(decision);
+              }
+            }
+            
+            if (decision === 'skip') {
               // Skip this duplicate
               skippedCount++;
-              errors.push({
-                row: i + 2,
-                identifier: item[Object.keys(item)[0]] || `Row ${i + 2}`,
-                error: 'Skipped (already exists)',
-                type: 'skipped'
-              });
               setImportProgress(prev => ({ ...prev, current: i + 1 }));
               continue;
-            } else if (importMode === 'overwrite') {
-              // Try to update existing record
+            } else if (decision === 'overwrite') {
+              // Try to find and update existing record
               try {
-                let existingId = null;
-                console.log(`[Replace] Searching for existing ${type}...`);
+                console.log(`[Overwrite] Searching for existing ${type}...`);
+                const searchRes = await managementClient.get(`${endpoints[type]}`);
                 
+                // Extract list from response - with null safety
+                let list = [];
+                const responseData = searchRes?.data;
+                if (responseData) {
+                  if (type === 'devices') {
+                    list = responseData.data?.devices || responseData.devices || responseData.data || responseData;
+                  } else if (type === 'sensors') {
+                    list = responseData.data?.sensors || responseData.sensors || responseData.data || responseData;
+                  } else if (type === 'trucks') {
+                    list = responseData.data?.trucks || responseData.trucks || responseData.data || responseData;
+                  } else if (type === 'drivers') {
+                    list = responseData.data?.drivers || responseData.drivers || responseData.data || responseData;
+                  } else if (type === 'vendors') {
+                    list = responseData.data?.vendors || responseData.vendors || responseData.data || responseData;
+                  }
+                }
+                
+                // Ensure list is array and filter nulls
+                if (!Array.isArray(list)) {
+                  list = [];
+                }
+                list = list.filter(item => item != null && typeof item === 'object');
+                
+                console.log(`[Overwrite] Found ${list.length} valid items`);
+                
+                // Find existing record based on unique field (with null checks)
+                let existingId = null;
                 if (type === 'devices' || type === 'sensors') {
-                  const q = transformedItem.sn ? `?sn=${encodeURIComponent(transformedItem.sn)}` : '';
-                  console.log(`[Replace] GET ${endpoints[type]}${q}`);
-                  const searchRes = await managementClient.get(`${endpoints[type]}${q}`);
-                  console.log(`[Replace] Search response:`, searchRes.data);
-                  const list = searchRes.data?.data?.[type] || searchRes.data?.data?.devices || searchRes.data?.data?.sensors || searchRes.data || [];
-                  console.log(`[Replace] List found:`, list);
-                  existingId = list?.find?.(d => d.sn === transformedItem.sn)?.id || (Array.isArray(list) && list.length > 0 ? list[0].id : null);
+                  const found = list.find(d => d && d.sn && item.sn && d.sn === item.sn);
+                  existingId = found?.id || null;
                 } else if (type === 'trucks') {
-                  const q = transformedItem.plate ? `?plate=${encodeURIComponent(transformedItem.plate)}` : '';
-                  console.log(`[Replace] GET ${endpoints[type]}${q}`);
-                  const searchRes = await managementClient.get(`${endpoints[type]}${q}`);
-                  console.log(`[Replace] Search response:`, searchRes.data);
-                  const list = searchRes.data?.data?.trucks || searchRes.data?.data || searchRes.data || [];
-                  console.log(`[Replace] List found:`, list);
-                  existingId = list?.find?.(t => t.plate === transformedItem.plate)?.id || (Array.isArray(list) && list.length > 0 ? list[0].id : null);
+                  const found = list.find(t => t && t.plate && item.plate && t.plate === item.plate);
+                  existingId = found?.id || null;
                 } else if (type === 'drivers') {
-                  const q = transformedItem.name ? `?name=${encodeURIComponent(transformedItem.name)}` : '';
-                  console.log(`[Replace] GET ${endpoints[type]}${q}`);
-                  const searchRes = await managementClient.get(`${endpoints[type]}${q}`);
-                  console.log(`[Replace] Search response:`, searchRes.data);
-                  const list = searchRes.data?.data?.drivers || searchRes.data?.data || searchRes.data || [];
-                  console.log(`[Replace] List found:`, list);
-                  existingId = list?.find?.(d => d.name === transformedItem.name)?.id || (Array.isArray(list) && list.length > 0 ? list[0].id : null);
+                  const found = list.find(d => d && d.name && item.name && d.name === item.name);
+                  existingId = found?.id || null;
                 } else if (type === 'vendors') {
-                  const q = transformedItem.name_vendor ? `?name_vendor=${encodeURIComponent(transformedItem.name_vendor)}` : '';
-                  console.log(`[Replace] GET ${endpoints[type]}${q}`);
-                  const searchRes = await managementClient.get(`${endpoints[type]}${q}`);
-                  console.log(`[Replace] Search response:`, searchRes.data);
-                  const list = searchRes.data?.data?.vendors || searchRes.data?.data || searchRes.data || [];
-                  console.log(`[Replace] List found:`, list);
-                  existingId = list?.find?.(v => v.name_vendor === transformedItem.name_vendor)?.id || (Array.isArray(list) && list.length > 0 ? list[0].id : null);
+                  const found = list.find(v => v && (v.name_vendor || v.name) && item.name_vendor && 
+                                              (v.name_vendor === item.name_vendor || v.name === item.name_vendor));
+                  existingId = found?.id || null;
                 }
 
-                console.log(`[Replace] Found existing ID:`, existingId);
+                console.log(`[Overwrite] Found existing ID:`, existingId);
 
                 if (existingId) {
-                  console.log(`[Replace] Updating ${type}/${existingId}...`);
+                  // Use the original transformedItem that was already prepared
                   await managementClient.put(`${endpoints[type]}/${existingId}`, transformedItem);
-                  console.log(`[Replace] Update successful`);
+                  console.log(`[Overwrite] Update successful`);
                   updatedCount++;
-                  
-                  // Delay to prevent rate limiting (300ms)
                   await delay(300);
                 } else {
-                  // couldn't find existing entity to replace; skip
-                  console.warn('[Replace] Existing entity not found for replace action, skipping row');
+                  // Could not find existing entity
+                  console.warn('[Overwrite] Could not find existing record to update');
                   skippedCount++;
-                  errors.push({
-                    row: i + 2,
-                    identifier: item[Object.keys(item)[0]] || `Row ${i + 2}`,
-                    error: 'Could not find existing record to update',
-                    type: 'skipped'
-                  });
                 }
               } catch (updateErr) {
-                console.error('[Replace] Update failed during replace action:', updateErr);
-                errors.push({
-                  row: i + 2,
-                  identifier: item[Object.keys(item)[0]] || `Row ${i + 2}`,
-                  error: updateErr.response?.data?.message || 'Update failed'
-                });
+                console.error('[Overwrite] Update failed:', updateErr);
+                // If update fails, count as skipped
+                skippedCount++;
               }
               setImportProgress(prev => ({ ...prev, current: i + 1 }));
               continue;
@@ -565,15 +643,88 @@ const MasterData = () => {
               masterDataImportRef.current.value = '';
             }
 
-            const rowIdentifier = item[Object.keys(item)[0]] || `Baris ${i + 2}`;
+            const rowIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
+            
+            // Build comprehensive error message
+            let errorMsg = `Import stopped at row ${i + 2}`;
+            if (rowIdentifier !== `Row ${i + 2}`) {
+              errorMsg += ` (${rowIdentifier})`;
+            }
+            errorMsg += ':\n\n';
+            
+            // Add validation errors or general error message
+            if (errorDetails) {
+              errorMsg += `❌ Validation Errors:\n${errorDetails}`;
+            } else {
+              errorMsg += `❌ Error: ${errorMessage}`;
+            }
+            
+            // Add success info if any
+            if (successCount + updatedCount > 0) {
+              errorMsg += `\n\n✅ ${successCount + updatedCount} record(s) were successfully imported before this error.`;
+            }
+            
+            errorMsg += '\n\n💡 Please fix the data and try again.';
 
             setAlertModal({
               isOpen: true,
               type: 'error',
-              title: `Import Error - ${rowIdentifier}`,
-              message: `Import dihentikan pada baris ${i + 2}${rowIdentifier !== `Baris ${i + 2}` ? ` (${rowIdentifier})` : ''}:\n\n${errorDetails || errorMessage}\n\n${successCount > 0 ? `${successCount} data berhasil di-import sebelum error terjadi.\n\n` : ''}Perbaiki data dan coba lagi.`
+              title: 'Import Failed',
+              message: errorMsg
             });
-            setDuplicateMode(null);
+            
+            // Reset states
+            setApplyToAll(false);
+            setUserDecision(null);
+            return;
+          }
+
+          if (isDuplicate) {
+            // This block is handled above with modal - should not reach here
+            console.error('[Import] Unexpected: Reached old duplicate code block');
+            skippedCount++;
+            setImportProgress(prev => ({ ...prev, current: i + 1 }));
+            continue;
+          } else {
+            // Non-duplicate error: stop import and show error
+            setImportProgress({ show: false, current: 0, total: 0, errors: [] });
+            if (masterDataImportRef.current) {
+              masterDataImportRef.current.value = '';
+            }
+
+            const rowIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
+            
+            // Build comprehensive error message
+            let errorMsg = `Import stopped at row ${i + 2}`;
+            if (rowIdentifier !== `Row ${i + 2}`) {
+              errorMsg += ` (${rowIdentifier})`;
+            }
+            errorMsg += ':\n\n';
+            
+            // Add validation errors or general error message
+            if (errorDetails) {
+              errorMsg += `❌ Validation Errors:\n${errorDetails}`;
+            } else {
+              errorMsg += `❌ Error: ${errorMessage}`;
+            }
+            
+            // Add success info if any
+            if (successCount + updatedCount > 0) {
+              errorMsg += `\n\n✅ ${successCount + updatedCount} record(s) were successfully imported before this error.`;
+            }
+            
+            errorMsg += '\n\n💡 Please fix the data in your CSV file and try again.';
+
+            setAlertModal({
+              isOpen: true,
+              type: 'error',
+              title: 'Import Failed - Validation Error',
+              message: errorMsg
+            });
+            
+            // Reset states
+            setApplyToAll(false);
+            setUserDecision(null);
             return;
           }
         }
@@ -587,29 +738,27 @@ const MasterData = () => {
 
       // Build result message
       const totalProcessed = successCount + updatedCount + skippedCount;
-      const failedCount = errors.filter(e => e.type !== 'skipped').length;
       
-      let message = `Import Complete:\n\n`;
-      message += `✅ Created: ${successCount}\n`;
-      if (updatedCount > 0) message += `🔄 Updated: ${updatedCount}\n`;
-      if (skippedCount > 0) message += `⏭️ Skipped: ${skippedCount}\n`;
-      if (failedCount > 0) message += `❌ Failed: ${failedCount}\n`;
-      message += `\nTotal rows: ${items.length}`;
-      
-      const hasErrors = failedCount > 0;
-      const errorDetails = errors.filter(e => e.type !== 'skipped');
+      let message = `Import Complete!\n\n`;
+      message += `✅ Successfully Created: ${successCount}\n`;
+      if (updatedCount > 0) message += `🔄 Successfully Updated: ${updatedCount}\n`;
+      if (skippedCount > 0) message += `⏭️ Skipped (already exists): ${skippedCount}\n`;
+      message += `\n📊 Total Rows Processed: ${totalProcessed} of ${items.length}`;
 
       setAlertModal({ 
         isOpen: true, 
-        type: hasErrors ? 'warning' : 'success', 
-        title: 'Import Complete', 
-        message: message + (hasErrors ? '\n\nErrors:\n' + errorDetails.map(e => `Row ${e.row} (${e.identifier}): ${e.error}`).join('\n') : '')
+        type: 'success', 
+        title: '✅ Import Success', 
+        message: message
       });
 
       if (masterDataImportRef.current) {
         masterDataImportRef.current.value = '';
       }
-      setDuplicateMode(null);
+      
+      // Reset states
+      setApplyToAll(false);
+      setUserDecision(null);
     } catch (error) {
       console.error(`Failed to import ${type}:`, error);
       setImportProgress({ show: false, current: 0, total: 0, errors: [] });
@@ -619,6 +768,9 @@ const MasterData = () => {
         title: 'Import Failed', 
         message: `Failed to process CSV file: ${error.message}` 
       });
+      // Reset states
+      setApplyToAll(false);
+      setUserDecision(null);
     }
   };
 
@@ -790,24 +942,6 @@ const MasterData = () => {
                 </p>
                 
                 {/* Import Mode Selector */}
-                <div className="mb-3">
-                  <label className="block text-xs font-medium text-indigo-900 mb-1.5">
-                    Duplicate Handling:
-                  </label>
-                  <select
-                    value={importMode}
-                    onChange={(e) => setImportMode(e.target.value)}
-                    className="w-full px-3 py-2 border border-indigo-300 rounded-lg text-xs font-medium text-indigo-800 bg-white hover:bg-indigo-50 transition-colors focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    title="Choose how to handle duplicate records"
-                  >
-                    <option value="skip">⏭️ Skip Duplicates</option>
-                    <option value="overwrite">🔄 Overwrite Duplicates</option>
-                  </select>
-                  <p className="text-[10px] text-indigo-600 mt-1">
-                    {importMode === 'skip' ? 'Existing records will be skipped' : 'Existing records will be updated'}
-                  </p>
-                </div>
-                
                 <button
                   onClick={() => masterDataImportRef.current?.click()}
                   className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
@@ -852,9 +986,9 @@ const MasterData = () => {
                 </table>
               </div>
               <p className="text-xs text-gray-500 mt-3">
-                <strong>Note:</strong> Baris pertama harus berisi nama kolom (header), baris selanjutnya adalah data.
+                <strong>Note:</strong> The first row must contain the column names (headers), the following rows are the data.
                 <br />
-                <strong>✓ Urutan kolom bebas</strong> - yang penting nama kolom harus sesuai dengan contoh di atas.
+                <strong>✓ Column order is flexible</strong> - what matters is that the column names must match the example above.
               </p>
             </div>
 
@@ -872,19 +1006,19 @@ const MasterData = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">sn:</span>
-                      <span className="text-red-700 font-medium">Wajib, Serial Number unik (max 50 karakter) contoh: DEV001</span>
+                      <span className="text-red-700 font-medium">Required, unique Serial Number (max 50 chars) e.g: DEV001</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">truck_id:</span>
-                      <span className="text-red-700 font-medium">Wajib, ID truck (harus sudah ada di database)</span>
+                      <span className="text-red-700 font-medium">Required, truck ID (must exist in database)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">sim_number:</span>
-                      <span>Opsional, nomor SIM card device (max 50 karakter)</span>
+                      <span>Optional, device SIM card number (max 50 chars)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">status:</span>
-                      <span>Opsional, default: active (pilihan: active, inactive, maintenance)</span>
+                      <span>Optional, default: active (options: active, inactive, maintenance)</span>
                     </div>
                   </div>
                 </div>
@@ -895,27 +1029,27 @@ const MasterData = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">sn:</span>
-                      <span className="text-red-700 font-medium">Wajib, Serial Number unik (max 50 karakter) contoh: SENS001</span>
+                      <span className="text-red-700 font-medium">Required, unique Serial Number (max 50 chars) e.g: SENS001</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">device_id:</span>
-                      <span className="text-red-700 font-medium">Wajib, ID device (harus sudah ada di database)</span>
+                      <span className="text-red-700 font-medium">Required, device ID (must exist in database)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">tireNo:</span>
-                      <span className="text-red-700 font-medium">Wajib, Posisi ban (angka 1-10)</span>
+                      <span className="text-red-700 font-medium">Required, tire position (number 1-10)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">simNumber:</span>
-                      <span>Opsional, nomor SIM untuk sensor (max 50 karakter)</span>
+                      <span>Optional, SIM number for sensor (max 50 chars)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">sensorNo:</span>
-                      <span>Opsional, nomor sensor (angka)</span>
+                      <span>Optional, sensor number (number)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">status:</span>
-                      <span>Opsional, default: active (pilihan: active, inactive, maintenance)</span>
+                      <span>Optional, default: active (options: active, inactive, maintenance)</span>
                     </div>
                   </div>
                 </div>
@@ -926,35 +1060,35 @@ const MasterData = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">name:</span>
-                      <span className="text-red-700 font-medium">Wajib, nama/ID truck (max 255 karakter) contoh: TRUCK-01</span>
+                      <span className="text-red-700 font-medium">Required, truck name/ID (max 255 chars) e.g: TRUCK-01</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">plate:</span>
-                      <span className="text-red-700 font-medium">Wajib, plat nomor (max 50 karakter), unik. Contoh: B 1234 XYZ</span>
+                      <span className="text-red-700 font-medium">Required, license plate (max 50 chars), unique. E.g: B 1234 XYZ</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">vin:</span>
-                      <span>Opsional, VIN 5 karakter (huruf & angka), unik</span>
+                      <span>Optional, VIN 5 characters (letters & numbers), unique</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">model:</span>
-                      <span>Opsional, model truk (Hino Ranger, Isuzu Giga, dll)</span>
+                      <span>Optional, truck model (Hino Ranger, Isuzu Giga, etc)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">year:</span>
-                      <span>Opsional, tahun 4 digit (contoh: 2023)</span>
+                      <span>Optional, 4-digit year (e.g: 2023)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">type:</span>
-                      <span>Opsional, tipe truk (Dump Truck, Box Truck, dll)</span>
+                      <span>Optional, truck type (Dump Truck, Box Truck, etc)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">vendor_id:</span>
-                      <span>Opsional, ID vendor (harus sudah ada di database)</span>
+                      <span>Optional, vendor ID (must exist in database)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">status:</span>
-                      <span>Opsional, default: active (pilihan: active, inactive, maintenance)</span>
+                      <span>Optional, default: active (options: active, inactive, maintenance)</span>
                     </div>
                   </div>
                 </div>
@@ -965,35 +1099,35 @@ const MasterData = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">name:</span>
-                      <span className="text-red-700 font-medium">Wajib, nama lengkap driver (max 255 karakter)</span>
+                      <span className="text-red-700 font-medium">Required, driver full name (max 255 chars)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">license_number:</span>
-                      <span className="text-red-700 font-medium">Wajib, nomor SIM (max 50 karakter) contoh: SIM-A-12345</span>
+                      <span className="text-red-700 font-medium">Required, license number (max 50 chars) e.g: SIM-A-12345</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">license_type:</span>
-                      <span className="text-red-700 font-medium">Wajib, tipe SIM (A/B1/B2/C) max 20 karakter</span>
+                      <span className="text-red-700 font-medium">Required, license type (A/B1/B2/C) max 20 chars</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">license_expiry:</span>
-                      <span className="text-red-700 font-medium">Wajib, tanggal kadaluarsa SIM (format: YYYY-MM-DD)</span>
+                      <span className="text-red-700 font-medium">Required, license expiry date (format: YYYY-MM-DD)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">phone:</span>
-                      <span>Opsional, nomor telepon (format: +62 812 3456 7890)</span>
+                      <span>Optional, phone number (format: +62 812 3456 7890)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">email:</span>
-                      <span>Opsional, email valid (contoh@domain.com)</span>
+                      <span>Optional, valid email (example@domain.com)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">vendor_id:</span>
-                      <span>Opsional, ID vendor (harus sudah ada di database)</span>
+                      <span>Optional, vendor ID (must exist in database)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">status:</span>
-                      <span>Opsional, default: aktif (pilihan: aktif, tidak_aktif, cuti)</span>
+                      <span>Optional, default: active (options: active, inactive, on_leave)</span>
                     </div>
                   </div>
                 </div>
@@ -1004,23 +1138,23 @@ const MasterData = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">name_vendor:</span>
-                      <span className="text-red-700 font-medium">Wajib, nama vendor (max 255 karakter)</span>
+                      <span className="text-red-700 font-medium">Required, vendor name (max 255 chars)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">address:</span>
-                      <span>Opsional, alamat lengkap vendor</span>
+                      <span>Optional, vendor full address</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">telephone:</span>
-                      <span>Opsional, nomor telepon (max 50 karakter)</span>
+                      <span>Optional, phone number (max 50 chars)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">email:</span>
-                      <span>Opsional, email vendor (max 255 karakter)</span>
+                      <span>Optional, vendor email (max 255 chars)</span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">contact_person:</span>
-                      <span>Opsional, nama contact person (max 255 karakter)</span>
+                      <span>Optional, contact person name (max 255 chars)</span>
                     </div>
                   </div>
                 </div>
@@ -1028,29 +1162,28 @@ const MasterData = () => {
 
               <div className="mt-4 pt-3 border-t border-blue-300">
                 <p className="text-xs text-blue-800">
-                  <strong>⚠️ Penting:</strong> Field yang ditandai merah adalah field yang WAJIB diisi atau memiliki format khusus. 
-                  Pastikan data sesuai format untuk menghindari error saat import.
+                  <strong>⚠️ Important:</strong> Fields marked in red are REQUIRED or have specific format requirements. 
+                  Make sure data matches the format to avoid import errors.
                 </p>
               </div>
-            </div>
-
-            {/* Statistics Panel */}
-            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: 'Total Devices', value: '0', color: 'blue' },
-                { label: 'Total Sensors', value: '0', color: 'green' },
-                { label: 'Total Trucks', value: '0', color: 'orange' },
-                { label: 'Total Drivers', value: '0', color: 'purple' }
-              ].map((stat, idx) => (
-                <div key={idx} className={`bg-${stat.color}-50 border border-${stat.color}-200 rounded-lg p-4`}>
-                  <div className={`text-2xl font-bold text-${stat.color}-600`}>{stat.value}</div>
-                  <div className="text-xs text-gray-600 mt-1">{stat.label}</div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Duplicate Handling Modal */}
+      <DuplicateModal
+        isOpen={duplicateModal.isOpen}
+        itemName={duplicateModal.itemName}
+        dataType={duplicateModal.dataType}
+        errorMessage={duplicateModal.errorMessage}
+        onSkip={duplicateModal.onSkip}
+        onOverwrite={duplicateModal.onOverwrite}
+        onCancel={duplicateModal.onCancel}
+        showApplyAll={true}
+        applyToAll={applyToAll}
+        onApplyAllChange={setApplyToAll}
+      />
 
       {/* Alert Modal */}
       <AlertModal
@@ -1062,37 +1195,6 @@ const MasterData = () => {
         confirmText="OK"
       />
 
-      {/* Confirm Modal for Duplicates */}
-      {confirmModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{confirmModal.title}</h3>
-              <p className="text-sm text-gray-600 whitespace-pre-line mb-6">{confirmModal.message}</p>
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={confirmModal.onConfirm}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                >
-                  Ganti Semua (Replace All)
-                </button>
-                <button
-                  onClick={confirmModal.onSkip}
-                  className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-                >
-                  Lewati Semua (Skip All)
-                </button>
-                <button
-                  onClick={confirmModal.onCancel}
-                  className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Batalkan Import (Cancel)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </TailwindLayout>
   );
 };

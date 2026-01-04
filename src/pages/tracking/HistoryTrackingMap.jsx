@@ -169,12 +169,29 @@ const HistoryTrackingMap = () => {
           
           console.log(`📦 Received ${historyData.length} history points for truck ${truckId}`);
           
-          // IMPORTANT: Filter to ensure we only get data for THIS truck
-          // Backend might return data for all trucks, so we filter client-side
+          // IMPORTANT: Filter to ensure we only get data for THIS truck AND within date range
           const filteredData = historyData.filter(point => {
             // Check if this point belongs to the requested truck
             const pointTruckId = point.truck_id || point.truckId || point.truck_info?.truck_id;
-            return String(pointTruckId) === String(truckId);
+            const isSameTruck = String(pointTruckId) === String(truckId);
+            
+            if (!isSameTruck) {
+              return false;
+            }
+            
+            // 🔒 CRITICAL: Check if timestamp is within selected date range
+            const timestamp = point.timestamp;
+            if (timestamp) {
+              const recordDate = new Date(timestamp);
+              const isInRange = recordDate >= start && recordDate <= end;
+              
+              if (!isInRange) {
+                console.log(`🚫 Filtering out record from ${recordDate.toLocaleString()} - outside selected range ${start.toLocaleString()} to ${end.toLocaleString()}`);
+                return false;
+              }
+            }
+            
+            return true;
           });
           
           if (filteredData.length === 0) {
@@ -334,6 +351,21 @@ const HistoryTrackingMap = () => {
               
               if (!id || !isFinite(lat) || !isFinite(lng)) return null;
               
+              // 🔒 FILTER: Only show trucks that existed on the selected date
+              // Check if truck was created before or on the selected date
+              const truckCreatedAt = truck.created_at || truck.createdAt || truck.created_at_timestamp;
+              if (truckCreatedAt) {
+                const createdDate = new Date(truckCreatedAt);
+                // selectedEnd represents end of selected day, so truck should exist by then
+                if (createdDate > selectedEnd) {
+                  console.log(`🚫 Active truck ${id} (${truck.plate_number}) - created ${createdDate.toLocaleDateString()} after selected date ${selectedEnd.toLocaleDateString()}`);
+                  return null;
+                }
+                console.log(`✅ Active truck ${id} passed created_at check - created ${createdDate.toLocaleDateString()} <= ${selectedEnd.toLocaleDateString()}`);
+              } else {
+                console.warn(`⚠️ Active truck ${id} has NO created_at field!`);
+              }
+              
               // Calculate average battery from device
               const battery = truck.device?.battery?.average || 0;
               
@@ -392,9 +424,47 @@ const HistoryTrackingMap = () => {
             
             try {
               const deletedDate = new Date(deletedAtField);
-              const selectedDate = new Date(selectedStart);
-              return selectedDate <= deletedDate;
+              const selectedDateStart = new Date(selectedStart);
+              const selectedDateEnd = new Date(selectedEnd);
+              
+              // � DEBUG: Log truck info to check created_at availability
+              const truckCreatedAt = truck.created_at || truck.createdAt || truck.created_at_timestamp;
+              console.log(`🔍 Checking deleted truck ${truck.id}:`, {
+                plate: truck.plate || truck.plate_number,
+                created_at: truckCreatedAt,
+                deleted_at: deletedAtField,
+                selectedDate: selectedDateStart.toLocaleDateString()
+              });
+              
+              // 🔒 FILTER 1: Truck must have been created BEFORE or DURING the selected date
+              if (truckCreatedAt) {
+                const createdDate = new Date(truckCreatedAt);
+                
+                // 🔒 STRICT: Truck must be created BEFORE the selected date START
+                // This ensures truck was already existing when the selected date began
+                if (createdDate > selectedDateEnd) {
+                  console.log(`🚫 Deleted truck ${truck.id} (${truck.plate || truck.plate_number}) - created ${createdDate.toLocaleDateString()} AFTER selected date end ${selectedDateEnd.toLocaleDateString()}`);
+                  return false;
+                }
+                
+                console.log(`✅ Deleted truck ${truck.id} passed created_at check - created ${createdDate.toLocaleDateString()} <= ${selectedDateEnd.toLocaleDateString()}`);
+              } else {
+                console.warn(`⚠️ Deleted truck ${truck.id} has NO created_at field! Will be excluded for safety.`);
+                // 🔒 STRICT: If no created_at, exclude deleted truck for safety
+                // This prevents old deleted trucks without proper metadata from appearing
+                return false;
+              }
+              
+              // 🔒 FILTER 2: Include only if deleted AFTER selected date start (was alive during selected date)
+              if (deletedDate < selectedDateStart) {
+                console.log(`🚫 Deleted truck ${truck.id} (${truck.plate || truck.plate_number}) - deleted ${deletedDate.toLocaleDateString()} BEFORE selected date start ${selectedDateStart.toLocaleDateString()}`);
+                return false;
+              }
+              
+              console.log(`✅ Deleted truck ${truck.id} passed all filters - will be included`);
+              return true;
             } catch (e) {
+              console.error(`❌ Error filtering deleted truck ${truck.id}:`, e);
               return false;
             }
           });
@@ -411,6 +481,9 @@ const HistoryTrackingMap = () => {
             }
             
             const deletedAtField = truck.deleted_at || truck.deletedAt || truck.deleted_at_timestamp;
+            
+            // Store created_at for later verification
+            const truckCreatedAtField = truck.created_at || truck.createdAt || truck.created_at_timestamp;
             
             vehicleData.push({
               id: truckId,
@@ -434,7 +507,9 @@ const HistoryTrackingMap = () => {
               device: null,
               sensorSummary: null,
               isDeleted: true,
-              deletedAt: new Date(deletedAtField)
+              deletedAt: new Date(deletedAtField),
+              createdAt: truckCreatedAtField ? new Date(truckCreatedAtField) : null,
+              verifiedCreatedAt: !!truckCreatedAtField // Mark if created_at exists
             });
             
             console.log(`   ✅ Added deleted truck ${truckId} (${truck.plate || truck.plate_number}) to vehicle list`);
@@ -446,12 +521,76 @@ const HistoryTrackingMap = () => {
         // Load route history for each vehicle BEFORE setting vehicles state
         const routesData = {};
         const routeVisibilityData = {};
+        const vehiclesWithHistory = []; // 🔒 Only keep trucks that have history data
+        
+        // 🔒 Clear routeMetaByVehicleRef before loading new data
+        routeMetaByVehicleRef.current = {};
 
         for (const vehicle of vehicleData) {
           console.log(`🔄 Loading route history for vehicle: ${vehicle.id}`);
           const history = await loadRouteHistory(vehicle.id, '24h');
           console.log(`📍 Route points loaded for ${vehicle.id}:`, history.points.length);
+          
           if (history.points.length > 0) {
+            // 🔒 CRITICAL: For deleted trucks, verify created_at before showing
+            if (vehicle.isDeleted && vehicle.createdAt) {
+              const { start: selectedStart, end: selectedEnd } = getDayWindow(selectedDate);
+              
+              // If truck was created AFTER the selected date, don't show it even if has history
+              if (vehicle.createdAt > selectedEnd) {
+                console.log(`🚫 FINAL CHECK: Deleted truck ${vehicle.id} created ${vehicle.createdAt.toLocaleDateString()} AFTER selected date ${selectedEnd.toLocaleDateString()} - WILL NOT DISPLAY (icon + route)`);
+                // 🔒 Do NOT add to routesData or vehiclesWithHistory
+                continue; // Skip this truck completely
+              }
+            }
+            
+            // 🔒 FILTER: Check if history records are actually within selected date range
+            const historyRecords = history.records || [];
+            const { start: selectedStart, end: selectedEnd } = getDayWindow(selectedDate);
+            
+            console.log(`🔍 Checking ${historyRecords.length} history records for truck ${vehicle.id}`, {
+              selectedRange: `${selectedStart.toLocaleDateString()} to ${selectedEnd.toLocaleDateString()}`,
+              plateNumber: vehicle.plateNumber
+            });
+            
+            let hasRelevantHistory = false;
+            let recordsInRange = 0;
+            let recordsOutOfRange = 0;
+            
+            if (historyRecords.length > 0) {
+              // Check if any history record is within the selected date range
+              for (const record of historyRecords) {
+                const recordTime = record.t || record.timestamp;
+                if (recordTime) {
+                  const recordDate = new Date(recordTime);
+                  
+                  // Check if this record is within selected date range
+                  if (recordDate >= selectedStart && recordDate <= selectedEnd) {
+                    hasRelevantHistory = true;
+                    recordsInRange++;
+                  } else {
+                    recordsOutOfRange++;
+                    console.log(`⚠️ Record at ${recordDate.toLocaleString()} is outside range for truck ${vehicle.id}`);
+                  }
+                }
+              }
+              
+              console.log(`📊 Truck ${vehicle.id} stats:`, {
+                totalRecords: historyRecords.length,
+                inRange: recordsInRange,
+                outOfRange: recordsOutOfRange,
+                hasRelevantHistory
+              });
+              
+              if (!hasRelevantHistory) {
+                console.log(`🚫 Truck ${vehicle.id} (${vehicle.plateNumber}) has ${historyRecords.length} history records but NONE in selected date range - will be hidden (icon + route)`);
+                // 🔒 Do NOT add to routesData or vehiclesWithHistory
+                continue; // Skip this truck
+              }
+              
+              console.log(`✅ Truck ${vehicle.id} (${vehicle.plateNumber}) has ${recordsInRange} records in selected date range - will be displayed`);
+            }
+            
             // Store route with proper isolation per vehicle
             routesData[vehicle.id] = [...history.points]; // Clone array to prevent reference issues
             routeVisibilityData[vehicle.id] = true;
@@ -464,12 +603,56 @@ const HistoryTrackingMap = () => {
             console.log(`📍 Updated ${vehicle.id} marker to history start:`, vehicle.position);
             console.log(`   First point: [${history.points[0][0]}, ${history.points[0][1]}]`);
             console.log(`   Last point: [${history.points[history.points.length-1][0]}, ${history.points[history.points.length-1][1]}]`);
+            
+            // 🔒 IMPORTANT: Only add truck to list if it has history data on selected date
+            vehiclesWithHistory.push(vehicle);
+            console.log(`✅ Truck ${vehicle.id} has history data - will be displayed`);
           } else {
-            console.warn(`⚠️ No route points found for vehicle ${vehicle.id}`);
+            console.log(`🚫 Truck ${vehicle.id} has NO history data on selected date - will be hidden`);
           }
         }
 
-        setVehicles(vehicleData);
+        // 🔒 Only set vehicles and routes that have history data on the selected date
+        console.log(`📊 Total trucks with history: ${vehiclesWithHistory.length} out of ${vehicleData.length}`);
+        console.log(`📊 Total routes to display: ${Object.keys(routesData).length}`);
+        
+        // 🔒 CRITICAL: Clean up old routes, markers, and start markers for vehicles not in new list
+        const newVehicleIds = new Set(vehiclesWithHistory.map(v => v.id));
+        
+        // Remove old routes
+        Object.keys(routeLinesRef.current).forEach(vehicleId => {
+          if (!newVehicleIds.has(vehicleId) && routeLinesRef.current[vehicleId]) {
+            console.log(`🗑️ Removing old route for vehicle ${vehicleId}`);
+            if (map.hasLayer(routeLinesRef.current[vehicleId])) {
+              map.removeLayer(routeLinesRef.current[vehicleId]);
+            }
+            delete routeLinesRef.current[vehicleId];
+          }
+        });
+        
+        // Remove old markers (truck icons)
+        Object.keys(markersRef.current).forEach(vehicleId => {
+          if (!newVehicleIds.has(vehicleId) && markersRef.current[vehicleId]) {
+            console.log(`🗑️ Removing old marker (icon) for vehicle ${vehicleId}`);
+            if (map.hasLayer(markersRef.current[vehicleId])) {
+              map.removeLayer(markersRef.current[vehicleId]);
+            }
+            delete markersRef.current[vehicleId];
+          }
+        });
+        
+        // Remove old route start markers (bulat)
+        Object.keys(routeStartMarkersRef.current).forEach(vehicleId => {
+          if (!newVehicleIds.has(vehicleId) && routeStartMarkersRef.current[vehicleId]) {
+            console.log(`🗑️ Removing old start marker (bulat) for vehicle ${vehicleId}`);
+            if (map.hasLayer(routeStartMarkersRef.current[vehicleId])) {
+              map.removeLayer(routeStartMarkersRef.current[vehicleId]);
+            }
+            delete routeStartMarkersRef.current[vehicleId];
+          }
+        });
+        
+        setVehicles(vehiclesWithHistory);
         setVehicleRoutes(routesData);
         setRouteVisible(routeVisibilityData);
         // commit meta records from ref to state to avoid stale closure
@@ -1639,137 +1822,111 @@ const HistoryTrackingMap = () => {
 
   const bottomControls = (
     <div
-      className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg px-4 py-3 flex items-center gap-3"
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg px-4 py-3 flex items-center gap-3 max-w-[95vw]"
       style={{ zIndex: 1000 }}
     >
       {selectedVehicle && hasHistory(selectedVehicle.id) ? (
         <>
-          {/* Play/Pause */}
+          {/* Play/Pause - Always visible */}
           <button
             onClick={() => (isPlaybackPlaying ? pausePlayback() : startPlayback())}
-            className={`px-3 py-1 rounded text-white text-xs ${isPlaybackPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'}`}
+            className={`px-3 py-2 min-[1369px]:py-1 rounded text-white text-sm min-[1369px]:text-xs font-medium ${isPlaybackPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'}`}
           >
-            {isPlaybackPlaying ? 'Pause' : 'Play'}
+            {isPlaybackPlaying ? '⏸ Pause' : '▶ Play'}
           </button>
-          {/* Step Back */}
-          <button
-            onClick={() => setPlaybackIndex((i) => Math.max(0, i - 1))}
-            className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
-          >
-            -1
-          </button>
-          {/* Skip Back 10 */}
-          <button
-            onClick={() => setPlaybackIndex((i) => Math.max(0, i - 10))}
-            className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
-            title="Skip back 10 points"
-          >
-            -10
-          </button>
-          {/* Timeline */}
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min={0}
-              max={(vehicleRoutes[selectedVehicle.id] || []).length - 1}
-              value={Math.min(playbackIndex, (vehicleRoutes[selectedVehicle.id] || []).length - 1)}
-              onChange={(e) => setPlaybackIndex(Number(e.target.value))}
-              className="w-64"
-            />
-            <span className="text-xs text-gray-700 min-w-[72px] text-right">
-              {Math.min(playbackIndex, (vehicleRoutes[selectedVehicle.id] || []).length - 1)} /{' '}
-              {(vehicleRoutes[selectedVehicle.id] || []).length - 1}
+          
+          {/* Desktop Controls - Hidden on mobile */}
+          <div className="hidden min-[1369px]:flex items-center gap-3">
+            {/* Step Back */}
+            <button
+              onClick={() => setPlaybackIndex((i) => Math.max(0, i - 1))}
+              className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
+            >
+              -1
+            </button>
+            {/* Skip Back 10 */}
+            <button
+              onClick={() => setPlaybackIndex((i) => Math.max(0, i - 10))}
+              className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
+              title="Skip back 10 points"
+            >
+              -10
+            </button>
+            {/* Timeline */}
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={0}
+                max={(vehicleRoutes[selectedVehicle.id] || []).length - 1}
+                value={Math.min(playbackIndex, (vehicleRoutes[selectedVehicle.id] || []).length - 1)}
+                onChange={(e) => setPlaybackIndex(Number(e.target.value))}
+                className="w-64"
+              />
+              <span className="text-xs text-gray-700 min-w-[72px] text-right">
+                {Math.min(playbackIndex, (vehicleRoutes[selectedVehicle.id] || []).length - 1)} /{' '}
+                {(vehicleRoutes[selectedVehicle.id] || []).length - 1}
+              </span>
+            </div>
+            {/* Step Forward */}
+            <button
+              onClick={() =>
+                setPlaybackIndex((i) =>
+                  Math.min((vehicleRoutes[selectedVehicle.id] || []).length - 1, i + 1)
+                )
+              }
+              className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
+            >
+              +1
+            </button>
+            {/* Skip Forward 10 */}
+            <button
+              onClick={() =>
+                setPlaybackIndex((i) =>
+                  Math.min((vehicleRoutes[selectedVehicle.id] || []).length - 1, i + 10)
+                )
+              }
+              className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
+              title="Skip forward 10 points"
+            >
+              +10
+            </button>
+            {/* Speed */}
+            <div className="flex items-center gap-1 text-xs text-gray-700">
+              <span>Speed:</span>
+              <select
+                value={playbackSpeedMs}
+                onChange={(e) => setPlaybackSpeedMs(Number(e.target.value))}
+                className="border border-gray-300 rounded px-1 py-0.5 text-xs"
+              >
+                <option value={1000}>1x</option>
+                <option value={500}>2x</option>
+                <option value={200}>5x</option>
+              </select>
+            </div>
+            {/* Stop */}
+            <button
+              onClick={stopPlayback}
+              className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
+            >
+              Stop
+            </button>
+          </div>
+          
+          {/* Mobile Progress Indicator - Only visible on mobile */}
+          <div className="flex min-[1369px]:hidden items-center gap-2 text-xs text-gray-600">
+            <span className="font-mono">
+              {Math.min(playbackIndex, (vehicleRoutes[selectedVehicle.id] || []).length - 1)} / {(vehicleRoutes[selectedVehicle.id] || []).length - 1}
             </span>
           </div>
-          {/* Step Forward */}
-          <button
-            onClick={() =>
-              setPlaybackIndex((i) =>
-                Math.min((vehicleRoutes[selectedVehicle.id] || []).length - 1, i + 1)
-              )
-            }
-            className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
-          >
-            +1
-          </button>
-          {/* Skip Forward 10 */}
-          <button
-            onClick={() =>
-              setPlaybackIndex((i) =>
-                Math.min((vehicleRoutes[selectedVehicle.id] || []).length - 1, i + 10)
-              )
-            }
-            className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
-            title="Skip forward 10 points"
-          >
-            +10
-          </button>
-          {/* Speed */}
-          <div className="flex items-center gap-1 text-xs text-gray-700">
-            <span>Speed:</span>
-            <select
-              value={playbackSpeedMs}
-              onChange={(e) => setPlaybackSpeedMs(Number(e.target.value))}
-              className="border border-gray-300 rounded px-1 py-0.5 text-xs"
-            >
-              <option value={1000}>1x</option>
-              <option value={500}>2x</option>
-              <option value={200}>5x</option>
-            </select>
-          </div>
-          {/* Stop */}
-          <button
-            onClick={stopPlayback}
-            className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
-          >
-            Stop
-          </button>
         </>
       ) : (
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-600">Pilih kendaraan untuk playback.</span>
           <button
-            className="px-3 py-1 rounded bg-gray-200 text-gray-500 text-xs cursor-not-allowed"
+            className="px-3 py-2 min-[1369px]:py-1 rounded bg-gray-200 text-gray-500 text-sm min-[1369px]:text-xs cursor-not-allowed"
             disabled
           >
-            Play
-          </button>
-          <button
-            className="px-2 py-1 rounded bg-gray-200 text-gray-500 text-xs cursor-not-allowed"
-            disabled
-          >
-            -1
-          </button>
-          <button
-            className="px-2 py-1 rounded bg-gray-200 text-gray-500 text-xs cursor-not-allowed"
-            disabled
-          >
-            -10
-          </button>
-          <input type="range" className="w-64 opacity-50" disabled />
-          <button
-            className="px-2 py-1 rounded bg-gray-200 text-gray-500 text-xs cursor-not-allowed"
-            disabled
-          >
-            +1
-          </button>
-          <button
-            className="px-2 py-1 rounded bg-gray-200 text-gray-500 text-xs cursor-not-allowed"
-            disabled
-          >
-            +10
-          </button>
-          <div className="flex items-center gap-1 text-xs text-gray-700">
-            <span>Speed:</span>
-            <select className="border border-gray-300 rounded px-1 py-0.5 text-xs" disabled>
-              <option>1x</option>
-            </select>
-          </div>
-          <button
-            className="px-2 py-1 rounded bg-gray-200 text-gray-500 text-xs cursor-not-allowed"
-            disabled
-          >
-            Stop
+            ▶ Play
           </button>
         </div>
       )}

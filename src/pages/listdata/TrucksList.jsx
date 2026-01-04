@@ -878,6 +878,77 @@ const TrucksFormList = () => {
                     </details>
                   </div>
                 </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (filtered.length === 0) {
+                        setAlert({
+                          isOpen: true,
+                          type: 'warning',
+                          title: 'No Data',
+                          message: 'No data to export',
+                          onConfirm: () => setAlert({ ...alert, isOpen: false }),
+                          showCancel: false,
+                        });
+                        return;
+                      }
+                      const csvContent = [
+                        [
+                          'No',
+                          'Truck Name',
+                          'Plate Number',
+                          'VIN',
+                          'Model',
+                          'Year',
+                          'Type',
+                          'Vendor',
+                          'Cluster',
+                          'Status',
+                          'Driver',
+                          'Manufacturer',
+                        ].join(','),
+                        ...filtered.map((truck, i) =>
+                          [
+                            i + 1,
+                            truck.name || '',
+                            truck.plate || '',
+                            truck.vin || '',
+                            truck.model || '',
+                            truck.year || '',
+                            truck.type || '',
+                            truck.vendor_name || '',
+                            truck.cluster || '',
+                            truck.status || '',
+                            truck.driver?.name || '',
+                            truck.manufacturer || '',
+                          ]
+                            .map((field) => `"${String(field).replace(/"/g, '""')}"`)
+                            .join(',')
+                        ),
+                      ].join('\n');
+
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement('a');
+                      link.href = URL.createObjectURL(blob);
+                      link.download = `vehicles_${new Date().toISOString().split('T')[0]}.csv`;
+                      link.click();
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                    title="Export to CSV"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    Export
+                  </button>
+                </div>
               </div>
 
               {/* Active Filters Display */}
@@ -1041,7 +1112,7 @@ const TrucksFormList = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 bg-gray-50"
                         onClick={() => handleSort('id')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           ID
                           {getSortIcon('id')}
                         </div>
@@ -1058,7 +1129,7 @@ const TrucksFormList = () => {
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('name')}
                     >
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         Name
                         {getSortIcon('name')}
                       </div>
@@ -1068,7 +1139,7 @@ const TrucksFormList = () => {
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('plate')}
                     >
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         Plate
                         {getSortIcon('plate')}
                       </div>
@@ -1078,7 +1149,7 @@ const TrucksFormList = () => {
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('year')}
                     >
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         Year
                         {getSortIcon('year')}
                       </div>
@@ -1088,7 +1159,7 @@ const TrucksFormList = () => {
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('model')}
                     >
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         Model
                         {getSortIcon('model')}
                       </div>
@@ -1098,7 +1169,7 @@ const TrucksFormList = () => {
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('type')}
                     >
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         Type
                         {getSortIcon('type')}
                       </div>
@@ -1108,7 +1179,7 @@ const TrucksFormList = () => {
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('vendor')}
                     >
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         Vendor
                         {getSortIcon('vendor')}
                       </div>
@@ -1118,7 +1189,7 @@ const TrucksFormList = () => {
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('status')}
                     >
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         Status
                         {getSortIcon('status')}
                       </div>
@@ -1128,7 +1199,7 @@ const TrucksFormList = () => {
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                       onClick={() => handleSort('vin')}
                     >
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-start gap-2">
                         VIN
                         {getSortIcon('vin')}
                       </div>
@@ -1139,7 +1210,7 @@ const TrucksFormList = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('createdAt')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           Created At
                           {getSortIcon('createdAt')}
                         </div>
@@ -1151,7 +1222,7 @@ const TrucksFormList = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('updatedAt')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           Updated At
                           {getSortIcon('updatedAt')}
                         </div>
@@ -1163,7 +1234,7 @@ const TrucksFormList = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('deletedAt')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           Deleted At
                           {getSortIcon('deletedAt')}
                         </div>
@@ -1175,7 +1246,7 @@ const TrucksFormList = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('createdBy')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           Created By
                           {getSortIcon('createdBy')}
                         </div>
@@ -1187,7 +1258,7 @@ const TrucksFormList = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('updatedBy')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           Updated By
                           {getSortIcon('updatedBy')}
                         </div>

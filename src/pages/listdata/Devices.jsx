@@ -860,7 +860,7 @@ const Devices = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('sn')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           Serial Number
                           {getSortIcon('sn')}
                         </div>
@@ -870,7 +870,7 @@ const Devices = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('truck')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           Truck
                           {getSortIcon('truck')}
                         </div>
@@ -880,7 +880,7 @@ const Devices = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('simNumber')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           SIM 4G Number
                           {getSortIcon('simNumber')}
                         </div>
@@ -890,7 +890,7 @@ const Devices = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('status')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           Status
                           {getSortIcon('status')}
                         </div>
@@ -900,7 +900,7 @@ const Devices = () => {
                         className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                         onClick={() => handleSort('installed_at')}
                       >
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-start gap-2">
                           Installed
                           {getSortIcon('installed_at')}
                         </div>
@@ -911,7 +911,7 @@ const Devices = () => {
                           className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                           onClick={() => handleSort('created_at')}
                         >
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-start gap-2">
                             Created At
                             {getSortIcon('created_at')}
                           </div>
@@ -923,7 +923,7 @@ const Devices = () => {
                           className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                           onClick={() => handleSort('updated_at')}
                         >
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-start gap-2">
                             Updated At
                             {getSortIcon('updated_at')}
                           </div>

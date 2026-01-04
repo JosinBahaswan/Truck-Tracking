@@ -1,0 +1,6 @@
+name,license_number,license_type,license_expiry,phone,email,vendor_id,status
+Ahmad Supriadi,B2-12345-2023,B2,2026-06-30,+62 812 3456 7890,ahmad.supriadi@email.com,1,aktif
+Budi Santoso,B2-23456-2022,B2,2026-12-31,+62 813 4567 8901,budi.santoso@email.com,1,aktif
+Dwi Cahyono,B2-34567-2023,B2,2027-03-15,+62 814 5678 9012,dwi.cahyono@email.com,2,aktif
+Eko Prasetyo,B2-45678-2024,B2,2027-08-20,+62 815 6789 0123,eko.prasetyo@email.com,2,aktif
+Fajar Ramadhan,B2-56789-2023,B2,2026-11-10,+62 816 7890 1234,fajar.ramadhan@email.com,3,aktif

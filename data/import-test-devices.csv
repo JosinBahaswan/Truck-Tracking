@@ -1,0 +1,4 @@
+sn,truck_id,sim_number,status
+TPMS-DEV-001,1,6281234567890,active
+TPMS-DEV-002,2,6281234567891,active
+TPMS-DEV-003,3,6281234567892,active

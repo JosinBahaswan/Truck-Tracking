@@ -1,0 +1,4 @@
+name,vin,plate,model,year,type,vendor_id,status
+TRUCK-HD001,HD001,KT 7890 AB,HD785-7,2023,Haul Truck,1,active
+TRUCK-HD002,HD002,KT 7891 CD,HD785-7,2022,Haul Truck,2,active
+TRUCK-CAT001,CAT01,KT 7892 EF,777D,2024,Haul Truck,3,active

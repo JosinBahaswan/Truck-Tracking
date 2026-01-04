@@ -825,7 +825,7 @@ export default function DriversList() {
                             }`}
                             onClick={() => col.sortable && handleSort(col.key)}
                           >
-                            <div className="flex items-center justify-center gap-2">
+                            <div className="flex items-center justify-start gap-2">
                               <span className="whitespace-normal">{col.label}</span>
                               {col.sortable && getSortIcon(col.key)}
                             </div>
