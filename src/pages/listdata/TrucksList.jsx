@@ -392,15 +392,13 @@ const TrucksFormList = () => {
     showCancel: false,
   });
 
-  const [deleteId, setDeleteId] = React.useState(null);
-
   const showDeleteConfirmation = (id) => {
-    setDeleteId(id);
     setAlert({
       isOpen: true,
       type: 'warning',
       title: 'Delete Vehicle?',
-      message: 'This will soft-delete the vehicle (hidden from list but retained in database). Are you sure?',
+      message:
+        'This will soft-delete the vehicle (hidden from list but retained in database). Are you sure?',
       confirmText: 'Delete',
       cancelText: 'Cancel',
       showCancel: true,
@@ -411,7 +409,7 @@ const TrucksFormList = () => {
 
   const confirmDelete = async (id) => {
     setAlert({ ...alert, isOpen: false });
-    
+
     try {
       console.log('🗑️ Soft-deleting vehicle with ID:', id);
 
@@ -442,7 +440,7 @@ const TrucksFormList = () => {
       console.error('❌ Failed to delete vehicle:', error);
       console.error('❌ Error details:', error.response?.data || error.message);
       const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
-      
+
       setAlert({
         isOpen: true,
         type: 'error',

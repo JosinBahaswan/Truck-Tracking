@@ -62,7 +62,12 @@ export default function TruckForm() {
   const [drivers, setDrivers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const isNewTruck = id === 'new';
-  const [alertModal, setAlertModal] = React.useState({ isOpen: false, type: 'info', title: '', message: '' });
+  const [alertModal, setAlertModal] = React.useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
   const [imageFile, setImageFile] = React.useState(null);
   const [imagePreview, setImagePreview] = React.useState(null);
   const fileInputRef = React.useRef(null);
@@ -124,15 +129,21 @@ export default function TruckForm() {
               status: truckData.status || 'active',
               manufacturer: truckData.manufacturer || 'Caterpillar',
             });
-            
+
             // Set image preview if truck has an image
             if (truckData.image) {
-              const API_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:3001';
+              const API_URL =
+                import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:3001';
               setImagePreview(`${API_URL}${truckData.image}`);
             }
           } catch (error) {
             console.error('❌ Failed to load truck:', error);
-            setAlertModal({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to load truck data. Redirecting to truck list.' });
+            setAlertModal({
+              isOpen: true,
+              type: 'error',
+              title: 'Error',
+              message: 'Failed to load truck data. Redirecting to truck list.',
+            });
             setTimeout(() => {
               navigate('/trucks');
             }, 1500);
@@ -141,7 +152,12 @@ export default function TruckForm() {
         }
       } catch (error) {
         console.error('❌ Failed to load form data:', error);
-        setAlertModal({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to load form data' });
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to load form data',
+        });
       } finally {
         setLoading(false);
       }
@@ -162,19 +178,29 @@ export default function TruckForm() {
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      setAlertModal({ isOpen: true, type: 'error', title: 'File Too Large', message: 'Image size cannot exceed 5MB' });
+      setAlertModal({
+        isOpen: true,
+        type: 'error',
+        title: 'File Too Large',
+        message: 'Image size cannot exceed 5MB',
+      });
       return;
     }
 
     // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!validTypes.includes(file.type)) {
-      setAlertModal({ isOpen: true, type: 'error', title: 'Invalid File Type', message: 'Only image files are allowed (jpeg, jpg, png, gif, webp)' });
+      setAlertModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Invalid File Type',
+        message: 'Only image files are allowed (jpeg, jpg, png, gif, webp)',
+      });
       return;
     }
 
     setImageFile(file);
-    
+
     // Create preview URL
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -205,12 +231,19 @@ export default function TruckForm() {
       // Must be exactly 5 characters, uppercase letters and numbers only
       const vinPattern = /^[A-Z0-9]{5}$/;
       if (!vinPattern.test(vin)) {
-        errors.push('VIN must be exactly 5 characters (uppercase letters A-Z and numbers 0-9 only)');
+        errors.push(
+          'VIN must be exactly 5 characters (uppercase letters A-Z and numbers 0-9 only)'
+        );
       }
     }
 
     if (errors.length > 0) {
-      setAlertModal({ isOpen: true, type: 'warning', title: 'Validation Error', message: 'Please fix the following errors:\n\n' + errors.join('\n') });
+      setAlertModal({
+        isOpen: true,
+        type: 'warning',
+        title: 'Validation Error',
+        message: 'Please fix the following errors:\n\n' + errors.join('\n'),
+      });
       return false;
     }
 
@@ -240,26 +273,37 @@ export default function TruckForm() {
         fd.append('image', imageFile);
 
         // Use axios directly for multipart/form-data
-        const API_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:3001';
+        const API_URL =
+          import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:3001';
         const token = localStorage.getItem('authToken') || localStorage.getItem('token');
         const axios = (await import('axios')).default;
-        
+
         if (isNewTruck) {
           await axios.post(`${API_URL}/api/trucks`, fd, {
             headers: {
               'Content-Type': 'multipart/form-data',
-              'Authorization': `Bearer ${token}`
-            }
+              Authorization: `Bearer ${token}`,
+            },
           });
-          setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Truck created successfully!' });
+          setAlertModal({
+            isOpen: true,
+            type: 'success',
+            title: 'Success',
+            message: 'Truck created successfully!',
+          });
         } else {
           await axios.put(`${API_URL}/api/trucks/${id}`, fd, {
             headers: {
               'Content-Type': 'multipart/form-data',
-              'Authorization': `Bearer ${token}`
-            }
+              Authorization: `Bearer ${token}`,
+            },
           });
-          setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Truck updated successfully!' });
+          setAlertModal({
+            isOpen: true,
+            type: 'success',
+            title: 'Success',
+            message: 'Truck updated successfully!',
+          });
         }
       } else {
         // No image - use regular JSON
@@ -281,11 +325,21 @@ export default function TruckForm() {
         if (isNewTruck) {
           response = await createTruck(truckData);
           console.log('✅ Truck created successfully:', response);
-          setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Truck created successfully!' });
+          setAlertModal({
+            isOpen: true,
+            type: 'success',
+            title: 'Success',
+            message: 'Truck created successfully!',
+          });
         } else {
           response = await updateTruck(id, truckData);
           console.log('✅ Truck updated successfully:', response);
-          setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Truck updated successfully!' });
+          setAlertModal({
+            isOpen: true,
+            type: 'success',
+            title: 'Success',
+            message: 'Truck updated successfully!',
+          });
         }
       }
 
@@ -294,25 +348,26 @@ export default function TruckForm() {
       }, 1500);
     } catch (error) {
       console.error('❌ Failed to save truck:', error);
-      
+
       // Handle validation errors from backend
       if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
         const errorMessages = error.response.data.errors
           .map((e) => `• ${e.field}: ${e.message}`)
           .join('\n');
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'error', 
-          title: 'Validation Error', 
-          message: `Please fix the following errors:\n\n${errorMessages}` 
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Validation Error',
+          message: `Please fix the following errors:\n\n${errorMessages}`,
         });
       } else {
-        const errorMsg = error.response?.data?.message || error.message || 'Failed to save truck data';
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'error', 
-          title: 'Error', 
-          message: `Failed to save truck:\n${errorMsg}` 
+        const errorMsg =
+          error.response?.data?.message || error.message || 'Failed to save truck data';
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Error',
+          message: `Failed to save truck:\n${errorMsg}`,
         });
       }
     }
@@ -629,7 +684,10 @@ export default function TruckForm() {
                       value={formData.vin}
                       onChange={(e) => {
                         // Auto-transform to uppercase and limit to 5 characters
-                        const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 5);
+                        const value = e.target.value
+                          .toUpperCase()
+                          .replace(/[^A-Z0-9]/g, '')
+                          .substring(0, 5);
                         handleInputChange('vin', value);
                       }}
                       placeholder="e.g., TR001 or AB123"
@@ -870,7 +928,7 @@ export default function TruckForm() {
                     className="hidden"
                     onChange={handleImageChange}
                   />
-                  
+
                   {imagePreview ? (
                     <div className="relative">
                       <img
@@ -885,8 +943,18 @@ export default function TruckForm() {
                           className="p-2 bg-white rounded-lg shadow-md hover:bg-gray-50 transition-colors"
                           title="Change image"
                         >
-                          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          <svg
+                            className="w-4 h-4 text-gray-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                            />
                           </svg>
                         </button>
                         <button
@@ -899,8 +967,18 @@ export default function TruckForm() {
                           className="p-2 bg-white rounded-lg shadow-md hover:bg-red-50 transition-colors"
                           title="Remove image"
                         >
-                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          <svg
+                            className="w-4 h-4 text-red-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
                           </svg>
                         </button>
                       </div>
@@ -911,8 +989,18 @@ export default function TruckForm() {
                       onClick={() => fileInputRef.current?.click()}
                       className="w-full h-48 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 transition-colors flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50"
                     >
-                      <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      <svg
+                        className="w-12 h-12"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
                       </svg>
                       <span className="text-sm font-medium">Click to upload truck image</span>
                       <span className="text-xs">PNG, JPG, GIF up to 5MB</span>

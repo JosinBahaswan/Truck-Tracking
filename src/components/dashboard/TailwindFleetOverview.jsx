@@ -125,12 +125,13 @@ const TailwindFleetOverview = () => {
           { name: 'Inactive', value: inactiveTrucks || 12 },
           {
             name: 'Idle',
-            value: totalTrucks > 0 
-              ? Math.max(totalTrucks - activeTrucks - maintenanceTrucks - inactiveTrucks, 0)
-              : 15,
+            value:
+              totalTrucks > 0
+                ? Math.max(totalTrucks - activeTrucks - maintenanceTrucks - inactiveTrucks, 0)
+                : 15,
           },
         ];
-        
+
         console.log('📊 Fleet Status Data:', statusData);
         setVehicleStatusData(statusData);
 
@@ -138,12 +139,12 @@ const TailwindFleetOverview = () => {
         try {
           const tempList = await trucksApi.getAll({ limit: 50 });
           const trucks = tempList?.data?.trucks || [];
-          
+
           // Aggregate temperature data
           const tempMap = {};
-          trucks.forEach(truck => {
+          trucks.forEach((truck) => {
             if (truck.tpms && Array.isArray(truck.tpms)) {
-              truck.tpms.forEach(tire => {
+              truck.tpms.forEach((tire) => {
                 const hour = new Date().getHours();
                 const key = `${hour}:00`;
                 if (!tempMap[key]) {
@@ -156,11 +157,12 @@ const TailwindFleetOverview = () => {
             }
           });
 
-          const tempData = Object.values(tempMap).map(item => ({
+          const tempData = Object.values(tempMap).map((item) => ({
             time: item.time,
-            average: item.temps.length > 0 
-              ? Math.round(item.temps.reduce((a, b) => a + b, 0) / item.temps.length)
-              : 0,
+            average:
+              item.temps.length > 0
+                ? Math.round(item.temps.reduce((a, b) => a + b, 0) / item.temps.length)
+                : 0,
             max: item.temps.length > 0 ? Math.max(...item.temps) : 0,
           }));
 
@@ -193,24 +195,24 @@ const TailwindFleetOverview = () => {
         try {
           const tireList = await trucksApi.getAll({ limit: 100 });
           const trucks = tireList?.data?.trucks || [];
-          
+
           console.log('🔧 Fetching tire pressure data from trucks:', trucks.length, 'trucks');
-          
+
           let normalCount = 0;
           let warningCount = 0;
           let criticalCount = 0;
           let noDataCount = 0;
           let hasTpmsData = false;
 
-          trucks.forEach(truck => {
+          trucks.forEach((truck) => {
             // Check multiple possible structures: tpms, sensors, tire_sensors
             const tireData = truck.tpms || truck.sensors || truck.tire_sensors || [];
-            
+
             if (Array.isArray(tireData) && tireData.length > 0) {
               hasTpmsData = true;
-              tireData.forEach(tire => {
+              tireData.forEach((tire) => {
                 const pressure = tire.pressure || tire.tirepValue || tire.tire_pressure || 0;
-                
+
                 if (!pressure || pressure === 0) {
                   noDataCount++;
                 } else if (pressure < 80) {
@@ -225,7 +227,10 @@ const TailwindFleetOverview = () => {
           });
 
           // If no TPMS data found in any truck, use fallback
-          if (!hasTpmsData || (normalCount === 0 && warningCount === 0 && criticalCount === 0 && noDataCount === 0)) {
+          if (
+            !hasTpmsData ||
+            (normalCount === 0 && warningCount === 0 && criticalCount === 0 && noDataCount === 0)
+          ) {
             console.log('⚠️ No TPMS data found, using fallback data');
             const fallbackData = [
               { name: 'Normal', value: 120 },
@@ -241,7 +246,7 @@ const TailwindFleetOverview = () => {
               { name: 'Critical', value: criticalCount },
               { name: 'No Data', value: noDataCount },
             ];
-            
+
             console.log('🔧 Tire Pressure Data prepared:', tireDataResult);
             setTirePressureData(tireDataResult);
           }
@@ -261,10 +266,10 @@ const TailwindFleetOverview = () => {
         try {
           const alertsRes = await alertsApi.getAll({ limit: 100 });
           const alerts = alertsRes?.data?.alerts || [];
-          
+
           // Group alerts by day
           const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-          const alertsByDay = days.map(day => ({
+          const alertsByDay = days.map((day) => ({
             day,
             critical: 0,
             warning: 0,
@@ -273,14 +278,14 @@ const TailwindFleetOverview = () => {
 
           // Populate with real data if available
           const now = new Date();
-          alerts.forEach(alert => {
+          alerts.forEach((alert) => {
             const alertDate = new Date(alert.occurredAt || alert.createdAt);
             const daysAgo = Math.floor((now - alertDate) / (1000 * 60 * 60 * 24));
-            
+
             if (daysAgo < 7) {
               const dayIndex = (now.getDay() - daysAgo + 7) % 7;
               const severity = alert.severity?.toLowerCase() || 'info';
-              
+
               if (severity.includes('critical') || severity.includes('high')) {
                 alertsByDay[dayIndex].critical++;
               } else if (severity.includes('warning') || severity.includes('medium')) {
@@ -351,19 +356,19 @@ const TailwindFleetOverview = () => {
   const handleManualRefresh = async () => {
     setLoading(true);
     setLastRefresh(new Date());
-    
+
     // Trigger a full reload by changing state to force re-render
     try {
       const statsRes = await dashboardApi.getStats();
       console.log('🔄 Manual refresh - Stats:', statsRes);
-      
+
       if (statsRes?.data) {
         const s = statsRes.data;
         const totalTrucks = Number(s.totalTrucks || 0);
         const activeTrucks = Number(s.activeTrucks || 0);
         const maintenanceTrucks = Number(s.maintenanceTrucks || 0);
         const inactiveTrucks = Number(s.inactiveTrucks || 0);
-        
+
         const statusData = [
           { name: 'Active', value: activeTrucks || 0 },
           { name: 'Maintenance', value: maintenanceTrucks || 0 },
@@ -373,7 +378,7 @@ const TailwindFleetOverview = () => {
             value: Math.max(totalTrucks - activeTrucks - maintenanceTrucks - inactiveTrucks, 0),
           },
         ];
-        
+
         console.log('🔄 Manual refresh - Setting vehicle status data:', statusData);
         setVehicleStatusData(statusData);
       }
@@ -435,10 +440,7 @@ const TailwindFleetOverview = () => {
             <VehicleActivityChart loading={loading} />
           </div>
           <div className="lg:col-span-1" key="fleet-status-chart-outer">
-            <FleetStatusChart 
-              data={vehicleStatusData} 
-              loading={loading}
-            />
+            <FleetStatusChart data={vehicleStatusData} loading={loading} />
           </div>
         </div>
 
@@ -450,18 +452,14 @@ const TailwindFleetOverview = () => {
         {/* Secondary Charts */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 mb-8">
           <div key="tire-pressure-chart-outer">
-            <TirePressureChart 
-              data={tirePressureData} 
-              loading={loading}
-            />
+            <TirePressureChart data={tirePressureData} loading={loading} />
           </div>
           <div key="temperature-chart-outer">
             <TemperatureChart data={temperatureData} loading={loading} />
           </div>
         </div>
-
       </div>
-      </div>
+    </div>
   );
 };
 

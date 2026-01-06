@@ -56,7 +56,7 @@ const Alerts = () => {
 
       if (filterSeverity) params.severity = filterSeverity;
       if (filterStatus) params.status = filterStatus;
-      
+
       // Add date range from date pickers
       if (dateFrom) {
         params.date_from = dateFrom.toISOString().split('T')[0];
@@ -113,14 +113,14 @@ const Alerts = () => {
     try {
       await alertEventsAPI.resolveAlert(selectedAlert.id);
       console.log('✅ Alert resolved successfully');
-      
+
       setModalConfig({
         type: 'success',
         title: 'Alert Resolved!',
         message: 'The alert has been marked as resolved successfully.',
       });
       setShowModal(true);
-      
+
       setTimeout(() => {
         setShowModal(false);
         loadAlerts();
@@ -148,13 +148,13 @@ const Alerts = () => {
       // Fetch ALL active alerts from backend (not just current page)
       console.log('🔄 Fetching all active alerts from backend...');
       const response = await alertEventsAPI.getActiveAlerts();
-      
+
       if (!response.success || !response.data) {
         throw new Error('Failed to fetch active alerts');
       }
-      
+
       const allActiveAlerts = Array.isArray(response.data) ? response.data : [];
-      
+
       if (allActiveAlerts.length === 0) {
         setModalConfig({
           type: 'info',
@@ -167,18 +167,18 @@ const Alerts = () => {
       }
 
       console.log(`🔄 Resolving ${allActiveAlerts.length} alerts from entire database...`);
-      
+
       // Use Promise.allSettled to handle partial failures
       const results = await Promise.allSettled(
-        allActiveAlerts.map(alert => alertEventsAPI.resolveAlert(alert.id))
+        allActiveAlerts.map((alert) => alertEventsAPI.resolveAlert(alert.id))
       );
 
       // Count successes and failures
-      const successful = results.filter(r => r.status === 'fulfilled').length;
-      const failed = results.filter(r => r.status === 'rejected').length;
+      const successful = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
 
       console.log(`✅ Resolved: ${successful}, ❌ Failed: ${failed}`);
-      
+
       if (failed === 0) {
         // All succeeded
         setModalConfig({
@@ -201,9 +201,9 @@ const Alerts = () => {
           message: `${successful} alert(s) resolved successfully, but ${failed} alert(s) failed.`,
         });
       }
-      
+
       setShowModal(true);
-      
+
       setTimeout(() => {
         setShowModal(false);
         loadAlerts();
@@ -338,7 +338,9 @@ const Alerts = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">Warning</p>
-                    <p className="text-2xl font-bold text-yellow-600">{stats.summary.warning || 0}</p>
+                    <p className="text-2xl font-bold text-yellow-600">
+                      {stats.summary.warning || 0}
+                    </p>
                   </div>
                   <ExclamationCircleIcon className="h-8 w-8 text-yellow-500" />
                 </div>
@@ -549,9 +551,7 @@ const Alerts = () => {
                     <div className="p-4">
                       <div className="flex items-center gap-4">
                         {/* Icon */}
-                        <div className="shrink-0">
-                          {getSeverityIcon(alert.severity)}
-                        </div>
+                        <div className="shrink-0">{getSeverityIcon(alert.severity)}</div>
 
                         {/* Content - Horizontal Layout */}
                         <div className="flex-1 min-w-0 flex items-center gap-4">
@@ -583,7 +583,9 @@ const Alerts = () => {
                           <div className="flex items-center gap-4 text-xs text-gray-600 shrink-0">
                             <div className="flex items-center gap-1">
                               <span className="font-medium">Truck:</span>
-                              <span className="text-gray-900">{alert.truck?.name || `#${alert.truck_id}`}</span>
+                              <span className="text-gray-900">
+                                {alert.truck?.name || `#${alert.truck_id}`}
+                              </span>
                             </div>
                             <div className="flex items-center gap-1">
                               <span className="font-medium">Value:</span>
@@ -591,7 +593,9 @@ const Alerts = () => {
                             </div>
                             <div className="flex items-center gap-1">
                               <ClockIcon className="h-3.5 w-3.5" />
-                              <span className="text-gray-900">{formatTimeAgo(alert.created_at)}</span>
+                              <span className="text-gray-900">
+                                {formatTimeAgo(alert.created_at)}
+                              </span>
                             </div>
                             {alert.status === 'resolved' && alert.resolved_at && (
                               <div className="flex items-center gap-1 text-green-600">
@@ -624,8 +628,8 @@ const Alerts = () => {
           {pagination && pagination.totalPages > 1 && (
             <div className="bg-white rounded-lg shadow-sm px-6 py-3 flex items-center justify-between mt-6">
               <div className="text-sm text-gray-700">
-                Showing page {pagination.page} of {pagination.totalPages} ({pagination.total}{' '}
-                total alerts)
+                Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} total
+                alerts)
               </div>
               <div className="flex gap-2">
                 <button

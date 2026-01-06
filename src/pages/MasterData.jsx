@@ -13,25 +13,35 @@ import {
   BuildingOfficeIcon,
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
-  DocumentArrowDownIcon
+  DocumentArrowDownIcon,
 } from '@heroicons/react/24/outline';
 
 const MasterData = () => {
   const masterDataImportRef = useRef(null);
-  const [alertModal, setAlertModal] = useState({ isOpen: false, type: 'info', title: '', message: '' });
-  const [importProgress, setImportProgress] = useState({ show: false, current: 0, total: 0, errors: [] });
+  const [alertModal, setAlertModal] = useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
+  const [importProgress, setImportProgress] = useState({
+    show: false,
+    current: 0,
+    total: 0,
+    errors: [],
+  });
   const [selectedDataType, setSelectedDataType] = useState('devices');
   const [profile, setProfile] = useState(null);
-  
+
   // Duplicate handling states
-  const [duplicateModal, setDuplicateModal] = useState({ 
-    isOpen: false, 
-    itemName: '', 
-    dataType: '', 
+  const [duplicateModal, setDuplicateModal] = useState({
+    isOpen: false,
+    itemName: '',
+    dataType: '',
     errorMessage: '',
-    onSkip: null, 
-    onOverwrite: null, 
-    onCancel: null 
+    onSkip: null,
+    onOverwrite: null,
+    onCancel: null,
   });
   const [applyToAll, setApplyToAll] = useState(false);
   const [userDecision, setUserDecision] = useState(null); // 'skip' or 'overwrite' or null
@@ -43,9 +53,14 @@ const MasterData = () => {
       if (!token) return null;
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(function (c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          })
+          .join('')
+      );
       return JSON.parse(jsonPayload);
     } catch (error) {
       console.error('Failed to decode token:', error);
@@ -61,9 +76,9 @@ const MasterData = () => {
         window.location.href = '/login';
         return;
       }
-      
+
       const response = await managementClient.get(`/users/me?t=${Date.now()}`);
-      
+
       let rawData;
       if (response.success && response.data) {
         rawData = response.data;
@@ -74,12 +89,12 @@ const MasterData = () => {
       } else {
         throw new Error('Invalid response structure');
       }
-      
+
       const normalizedData = {
         id: rawData.id,
         role: rawData.role || '',
       };
-      
+
       setProfile(normalizedData);
     } catch (error) {
       console.error('Failed to fetch profile:', error);
@@ -106,24 +121,57 @@ const MasterData = () => {
     const templates = {
       devices: {
         headers: ['sn', 'truck_id', 'sim_number', 'status'],
-        example: ['TPMS-DEV-001', '1', '6281234567890', 'active']
+        example: ['TPMS-DEV-001', '1', '6281234567890', 'active'],
       },
       sensors: {
         headers: ['sn', 'device_id', 'tireNo', 'simNumber', 'sensorNo', 'status'],
-        example: ['SENS-T1-FL', '1', '1', '6281234560001', 'FL', 'active']
+        example: ['SENS-T1-FL', '1', '1', '6281234560001', 'FL', 'active'],
       },
       trucks: {
         headers: ['name', 'vin', 'plate', 'model', 'year', 'type', 'vendor_id', 'status'],
-        example: ['TRUCK-HD001', 'HD001', 'KT 7890 AB', 'HD785-7', '2023', 'Haul Truck', '1', 'active']
+        example: [
+          'TRUCK-HD001',
+          'HD001',
+          'KT 7890 AB',
+          'HD785-7',
+          '2023',
+          'Haul Truck',
+          '1',
+          'active',
+        ],
       },
       drivers: {
-        headers: ['name', 'license_number', 'license_type', 'license_expiry', 'phone', 'email', 'vendor_id', 'status'],
-        example: ['Ahmad Supriadi', 'B2-12345-2023', 'B2', '2026-06-30', '+62 812 3456 7890', 'ahmad.supriadi@email.com', '1', 'aktif']
+        headers: [
+          'name',
+          'license_number',
+          'license_type',
+          'license_expiry',
+          'phone',
+          'email',
+          'vendor_id',
+          'status',
+        ],
+        example: [
+          'Ahmad Supriadi',
+          'B2-12345-2023',
+          'B2',
+          '2026-06-30',
+          '+62 812 3456 7890',
+          'ahmad.supriadi@email.com',
+          '1',
+          'aktif',
+        ],
       },
       vendors: {
         headers: ['name_vendor', 'address', 'telephone', 'email', 'contact_person'],
-        example: ['PT Mitra Transportasi Nusantara', 'Jl. Raya Industri No. 45 Balikpapan', '0542-7654321', 'info@mitratrans.co.id', 'Budi Setiawan']
-      }
+        example: [
+          'PT Mitra Transportasi Nusantara',
+          'Jl. Raya Industri No. 45 Balikpapan',
+          '0542-7654321',
+          'info@mitratrans.co.id',
+          'Budi Setiawan',
+        ],
+      },
     };
     return templates[type] || templates.devices;
   };
@@ -135,14 +183,17 @@ const MasterData = () => {
       template.headers.join(','),
       template.example.join(','),
       template.headers.map(() => '').join(','),
-      template.headers.map(() => '').join(',')
+      template.headers.map(() => '').join(','),
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `${type}_import_template_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute(
+      'download',
+      `${type}_import_template_${new Date().toISOString().split('T')[0]}.csv`
+    );
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -154,16 +205,16 @@ const MasterData = () => {
     try {
       const endpoints = {
         devices: '/iot/devices',
-        sensors: '/iot/sensors', 
+        sensors: '/iot/sensors',
         trucks: '/trucks',
         drivers: '/drivers',
-        vendors: '/vendors'
+        vendors: '/vendors',
       };
 
       const response = await managementClient.get(endpoints[type] || endpoints.devices);
-      
+
       console.log(`[Export ${type}] Response:`, response.data);
-      
+
       // Handle different response structures from different endpoints
       let data;
       if (type === 'devices' || type === 'sensors') {
@@ -171,36 +222,51 @@ const MasterData = () => {
         data = response.data?.data?.[type] || response.data?.[type] || [];
       } else if (type === 'trucks') {
         // Trucks endpoint returns: { data: { trucks: [...] } }
-        data = response.data?.data?.trucks || response.data?.trucks || response.data?.data || response.data || [];
+        data =
+          response.data?.data?.trucks ||
+          response.data?.trucks ||
+          response.data?.data ||
+          response.data ||
+          [];
       } else if (type === 'drivers') {
         // Drivers endpoint returns: { data: { drivers: [...] } }
-        data = response.data?.data?.drivers || response.data?.drivers || response.data?.data || response.data || [];
+        data =
+          response.data?.data?.drivers ||
+          response.data?.drivers ||
+          response.data?.data ||
+          response.data ||
+          [];
       } else if (type === 'vendors') {
         // Vendors endpoint returns: { data: { vendors: [...] } }
-        data = response.data?.data?.vendors || response.data?.vendors || response.data?.data || response.data || [];
+        data =
+          response.data?.data?.vendors ||
+          response.data?.vendors ||
+          response.data?.data ||
+          response.data ||
+          [];
       } else {
         data = response.data?.data || response.data || [];
       }
-      
+
       console.log(`[Export ${type}] Parsed data:`, data);
-      
+
       if (!Array.isArray(data)) {
         console.error(`[Export ${type}] Data is not array:`, typeof data, data);
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'error', 
-          title: 'Export Failed', 
-          message: `Invalid data format received from server` 
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Export Failed',
+          message: `Invalid data format received from server`,
         });
         return;
       }
-      
+
       if (data.length === 0) {
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'info', 
-          title: 'No Data', 
-          message: `No ${type} found to export` 
+        setAlertModal({
+          isOpen: true,
+          type: 'info',
+          title: 'No Data',
+          message: `No ${type} found to export`,
         });
         return;
       }
@@ -208,9 +274,9 @@ const MasterData = () => {
       const template = getMasterDataTemplate(type);
       const headers = template.headers;
       const csvRows = [headers.join(',')];
-      
-      data.forEach(item => {
-        const row = headers.map(header => {
+
+      data.forEach((item) => {
+        const row = headers.map((header) => {
           const value = item[header] || '';
           return value.toString().includes(',') ? `"${value.replace(/"/g, '""')}"` : value;
         });
@@ -228,29 +294,29 @@ const MasterData = () => {
       link.click();
       document.body.removeChild(link);
 
-      setAlertModal({ 
-        isOpen: true, 
-        type: 'success', 
-        title: 'Export Success', 
-        message: `Successfully exported ${data.length} ${type}` 
+      setAlertModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Export Success',
+        message: `Successfully exported ${data.length} ${type}`,
       });
     } catch (error) {
       console.error(`Failed to export ${type}:`, error);
-      setAlertModal({ 
-        isOpen: true, 
-        type: 'error', 
-        title: 'Export Failed', 
-        message: error.response?.data?.message || `Failed to export ${type}` 
+      setAlertModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Export Failed',
+        message: error.response?.data?.message || `Failed to export ${type}`,
       });
     }
   };
 
   // Parse CSV content
   const parseCSV = (text) => {
-    const lines = text.split('\n').filter(line => line.trim());
+    const lines = text.split('\n').filter((line) => line.trim());
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const headers = lines[0].split(',').map((h) => h.trim().replace(/"/g, ''));
     const data = [];
 
     for (let i = 1; i < lines.length; i++) {
@@ -291,11 +357,11 @@ const MasterData = () => {
     if (!file) return;
 
     if (!file.name.endsWith('.csv')) {
-      setAlertModal({ 
-        isOpen: true, 
-        type: 'error', 
-        title: 'Invalid File', 
-        message: 'Please upload a CSV file' 
+      setAlertModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Invalid File',
+        message: 'Please upload a CSV file',
       });
       return;
     }
@@ -305,11 +371,11 @@ const MasterData = () => {
       const items = parseCSV(text);
 
       if (items.length === 0) {
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'error', 
-          title: 'No Data', 
-          message: `No valid ${type} data found in CSV file` 
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'No Data',
+          message: `No valid ${type} data found in CSV file`,
         });
         return;
       }
@@ -317,16 +383,16 @@ const MasterData = () => {
       // Reset states
       setApplyToAll(false);
       setUserDecision(null);
-      
+
       setImportProgress({ show: true, current: 0, total: items.length, errors: [] });
 
       let successCount = 0;
       let skippedCount = 0;
       let updatedCount = 0;
-      
+
       // Helper: delay to prevent rate limiting
-      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-      
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
       // Helper: Show duplicate modal and wait for user decision
       const askUserDecision = (itemName, errorMsg) => {
         return new Promise((resolve) => {
@@ -346,7 +412,7 @@ const MasterData = () => {
             onCancel: () => {
               setDuplicateModal({ ...duplicateModal, isOpen: false });
               resolve('cancel');
-            }
+            },
           });
         });
       };
@@ -363,23 +429,27 @@ const MasterData = () => {
         const item = items[i];
         // Transform data based on type to match backend expectations (at loop level for access in catch block)
         let transformedItem = { ...item };
-        
+
         try {
           // Apply transformations
           if (type === 'devices') {
-            if (transformedItem.truck_id) transformedItem.truck_id = parseInt(transformedItem.truck_id);
+            if (transformedItem.truck_id)
+              transformedItem.truck_id = parseInt(transformedItem.truck_id);
             if (!transformedItem.sim_number) delete transformedItem.sim_number;
             if (!transformedItem.status) transformedItem.status = 'active';
           } else if (type === 'sensors') {
-            if (transformedItem.device_id) transformedItem.device_id = parseInt(transformedItem.device_id);
+            if (transformedItem.device_id)
+              transformedItem.device_id = parseInt(transformedItem.device_id);
             if (transformedItem.tireNo) transformedItem.tireNo = parseInt(transformedItem.tireNo);
-            if (transformedItem.sensorNo) transformedItem.sensorNo = parseInt(transformedItem.sensorNo);
+            if (transformedItem.sensorNo)
+              transformedItem.sensorNo = parseInt(transformedItem.sensorNo);
             if (!transformedItem.simNumber) delete transformedItem.simNumber;
             if (!transformedItem.sensorNo) delete transformedItem.sensorNo;
             if (!transformedItem.status) transformedItem.status = 'active';
           } else if (type === 'trucks') {
             if (transformedItem.year) transformedItem.year = parseInt(transformedItem.year);
-            if (transformedItem.vendor_id) transformedItem.vendor_id = parseInt(transformedItem.vendor_id);
+            if (transformedItem.vendor_id)
+              transformedItem.vendor_id = parseInt(transformedItem.vendor_id);
             if (!transformedItem.vin) delete transformedItem.vin;
             if (!transformedItem.model) delete transformedItem.model;
             if (!transformedItem.year) delete transformedItem.year;
@@ -387,7 +457,8 @@ const MasterData = () => {
             if (!transformedItem.vendor_id) delete transformedItem.vendor_id;
             if (!transformedItem.status) transformedItem.status = 'active';
           } else if (type === 'drivers') {
-            if (transformedItem.vendor_id) transformedItem.vendor_id = parseInt(transformedItem.vendor_id);
+            if (transformedItem.vendor_id)
+              transformedItem.vendor_id = parseInt(transformedItem.vendor_id);
             if (!transformedItem.phone) delete transformedItem.phone;
             if (!transformedItem.email) delete transformedItem.email;
             if (!transformedItem.vendor_id) delete transformedItem.vendor_id;
@@ -398,19 +469,23 @@ const MasterData = () => {
             if (!transformedItem.email) delete transformedItem.email;
             if (!transformedItem.contact_person) delete transformedItem.contact_person;
           }
-          
+
           // Client-side pre-validation: sensors must have device_id
           if (type === 'sensors') {
             if (!transformedItem.device_id || isNaN(transformedItem.device_id)) {
               const rowIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
-              console.log('[Import] Sensor validation failed:', { row: i + 2, item, transformedItem });
+              console.log('[Import] Sensor validation failed:', {
+                row: i + 2,
+                item,
+                transformedItem,
+              });
               setImportProgress({ show: false, current: 0, total: items.length, errors: [] });
               if (masterDataImportRef.current) masterDataImportRef.current.value = '';
               setAlertModal({
                 isOpen: true,
                 type: 'error',
                 title: 'Import Failed - Invalid Device ID',
-                message: `Import failed at row ${i + 2} (${rowIdentifier}):\n\nColumn 'device_id' is empty or invalid.\n\nReceived value: ${item.device_id || '(empty)'}\nParsed value: ${transformedItem.device_id || '(empty)'}\n\nPlease:\n1. Make sure the Device is already imported to the database\n2. Fill in the correct 'device_id' number in the CSV\n3. Import Devices before importing Sensors`
+                message: `Import failed at row ${i + 2} (${rowIdentifier}):\n\nColumn 'device_id' is empty or invalid.\n\nReceived value: ${item.device_id || '(empty)'}\nParsed value: ${transformedItem.device_id || '(empty)'}\n\nPlease:\n1. Make sure the Device is already imported to the database\n2. Fill in the correct 'device_id' number in the CSV\n3. Import Devices before importing Sensors`,
               });
               setUserDecision(null);
               setApplyToAll(false);
@@ -430,15 +505,18 @@ const MasterData = () => {
 
           if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
             const validationErrors = error.response.data.errors;
-            errorDetails = validationErrors.map(err =>
-              `• ${err.field}: ${err.message}${err.value !== undefined ? ` (current value: "${err.value}")` : ''}`
-            ).join('\n');
+            errorDetails = validationErrors
+              .map(
+                (err) =>
+                  `• ${err.field}: ${err.message}${err.value !== undefined ? ` (current value: "${err.value}")` : ''}`
+              )
+              .join('\n');
             errorMessage = 'Validation Error';
-            
+
             console.log('[Import] Validation errors detected:', errorDetails);
 
             // If validation error indicates missing device_id, show friendly message
-            const missingDeviceId = validationErrors.some(e => {
+            const missingDeviceId = validationErrors.some((e) => {
               const field = (e.field || '').toString().toLowerCase();
               const msg = (e.message || '').toString().toLowerCase();
               return (field === 'device_id' || field === 'deviceid') && msg.includes('required');
@@ -452,7 +530,7 @@ const MasterData = () => {
                 isOpen: true,
                 type: 'error',
                 title: 'Import Failed - Missing Device',
-                message: `Import failed at row ${i + 2} (${rowIdentifier}):\n\n❌ Validation Errors:\n${errorDetails}\n\n💡 Make sure the Device is registered and try again.`
+                message: `Import failed at row ${i + 2} (${rowIdentifier}):\n\n❌ Validation Errors:\n${errorDetails}\n\n💡 Make sure the Device is registered and try again.`,
               });
               setUserDecision(null);
               setApplyToAll(false);
@@ -468,7 +546,12 @@ const MasterData = () => {
 
           // Detect "Truck not found" error from backend
           const truckNotFoundRegex = /truck not found[:\s]*([0-9]+)/i;
-          const truckMsgSource = (error.response?.data?.message || error.response?.data?.error || errorMessage || '').toString();
+          const truckMsgSource = (
+            error.response?.data?.message ||
+            error.response?.data?.error ||
+            errorMessage ||
+            ''
+          ).toString();
           const truckMatch = truckNotFoundRegex.exec(truckMsgSource);
           if (truckMatch) {
             const _missingTruckId = truckMatch[1];
@@ -479,7 +562,7 @@ const MasterData = () => {
               isOpen: true,
               type: 'error',
               title: 'Import Failed - Truck Not Found',
-              message: `${errorMessage}\n\nRow: ${i + 2} (${rowIdentifier})\n\nPlease import Trucks first before importing Devices, or update the truck_id in your CSV.`
+              message: `${errorMessage}\n\nRow: ${i + 2} (${rowIdentifier})\n\nPlease import Trucks first before importing Devices, or update the truck_id in your CSV.`,
             });
             setUserDecision(null);
             setApplyToAll(false);
@@ -488,7 +571,12 @@ const MasterData = () => {
 
           // Detect "Device not found" error from backend
           const deviceNotFoundRegex = /device not found[:\s]*([0-9]+)/i;
-          const deviceMsgSource = (error.response?.data?.message || error.response?.data?.error || errorMessage || '').toString();
+          const deviceMsgSource = (
+            error.response?.data?.message ||
+            error.response?.data?.error ||
+            errorMessage ||
+            ''
+          ).toString();
           const deviceMatch = deviceNotFoundRegex.exec(deviceMsgSource);
           if (deviceMatch) {
             const _missingDeviceId = deviceMatch[1];
@@ -499,35 +587,39 @@ const MasterData = () => {
               isOpen: true,
               type: 'error',
               title: 'Import Failed - Device Not Found',
-              message: `${errorMessage}\n\nRow: ${i + 2} (${rowIdentifier})\n\nPlease import Devices first before importing Sensors, or update the device_id in your CSV.`
+              message: `${errorMessage}\n\nRow: ${i + 2} (${rowIdentifier})\n\nPlease import Devices first before importing Sensors, or update the device_id in your CSV.`,
             });
             setUserDecision(null);
             setApplyToAll(false);
             return;
           }
           // Check duplicate condition
-          const isDuplicate = (errorMessage || '').toLowerCase().includes('already exists') ||
-                              (errorMessage || '').toLowerCase().includes('already occupied') ||
-                              (errorMessage || '').toLowerCase().includes('duplicate') ||
-                              error.response?.status === 409;
-          
+          const isDuplicate =
+            (errorMessage || '').toLowerCase().includes('already exists') ||
+            (errorMessage || '').toLowerCase().includes('already occupied') ||
+            (errorMessage || '').toLowerCase().includes('duplicate') ||
+            error.response?.status === 409;
+
           // Check rate limit error
-          const isRateLimited = error.response?.status === 429 || 
-                                (errorMessage || '').toLowerCase().includes('too many requests');
-          
+          const isRateLimited =
+            error.response?.status === 429 ||
+            (errorMessage || '').toLowerCase().includes('too many requests');
+
           if (isRateLimited) {
             // Use retryAfter from backend response, or default to 15 seconds
             const waitTime = (error.response?.data?.retryAfter || 15) * 1000;
-            console.warn(`[Rate Limited] Row ${i + 1}, waiting ${waitTime/1000}s before retry...`);
-            
+            console.warn(
+              `[Rate Limited] Row ${i + 1}, waiting ${waitTime / 1000}s before retry...`
+            );
+
             // Show message to user
-            setImportProgress({ 
-              show: true, 
-              current: i, 
-              total: items.length, 
-              errors: [`Rate limit hit, waiting ${waitTime/1000}s...`] 
+            setImportProgress({
+              show: true,
+              current: i,
+              total: items.length,
+              errors: [`Rate limit hit, waiting ${waitTime / 1000}s...`],
             });
-            
+
             await delay(waitTime);
             // Retry this item by decrementing i
             i--;
@@ -537,12 +629,12 @@ const MasterData = () => {
           if (isDuplicate) {
             // Handle duplicate - check if user has already decided for all
             let decision = userDecision;
-            
+
             if (!applyToAll || !decision) {
               // Ask user what to do
               const itemIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
               decision = await askUserDecision(itemIdentifier, errorMessage);
-              
+
               if (decision === 'cancel') {
                 // User cancelled, stop import
                 setImportProgress({ show: false, current: 0, total: 0, errors: [] });
@@ -551,67 +643,94 @@ const MasterData = () => {
                   isOpen: true,
                   type: 'info',
                   title: 'Import Cancelled',
-                  message: `Import cancelled by user.\n\n${successCount + updatedCount} record(s) were imported before cancellation.`
+                  message: `Import cancelled by user.\n\n${successCount + updatedCount} record(s) were imported before cancellation.`,
                 });
                 return;
               }
-              
+
               // If apply to all is checked, save this decision
               if (applyToAll) {
                 setUserDecision(decision);
               }
             }
-            
+
             if (decision === 'skip') {
               // Skip this duplicate
               skippedCount++;
-              setImportProgress(prev => ({ ...prev, current: i + 1 }));
+              setImportProgress((prev) => ({ ...prev, current: i + 1 }));
               continue;
             } else if (decision === 'overwrite') {
               // Try to find and update existing record
               try {
                 console.log(`[Overwrite] Searching for existing ${type}...`);
                 const searchRes = await managementClient.get(`${endpoints[type]}`);
-                
+
                 // Extract list from response - with null safety
                 let list = [];
                 const responseData = searchRes?.data;
                 if (responseData) {
                   if (type === 'devices') {
-                    list = responseData.data?.devices || responseData.devices || responseData.data || responseData;
+                    list =
+                      responseData.data?.devices ||
+                      responseData.devices ||
+                      responseData.data ||
+                      responseData;
                   } else if (type === 'sensors') {
-                    list = responseData.data?.sensors || responseData.sensors || responseData.data || responseData;
+                    list =
+                      responseData.data?.sensors ||
+                      responseData.sensors ||
+                      responseData.data ||
+                      responseData;
                   } else if (type === 'trucks') {
-                    list = responseData.data?.trucks || responseData.trucks || responseData.data || responseData;
+                    list =
+                      responseData.data?.trucks ||
+                      responseData.trucks ||
+                      responseData.data ||
+                      responseData;
                   } else if (type === 'drivers') {
-                    list = responseData.data?.drivers || responseData.drivers || responseData.data || responseData;
+                    list =
+                      responseData.data?.drivers ||
+                      responseData.drivers ||
+                      responseData.data ||
+                      responseData;
                   } else if (type === 'vendors') {
-                    list = responseData.data?.vendors || responseData.vendors || responseData.data || responseData;
+                    list =
+                      responseData.data?.vendors ||
+                      responseData.vendors ||
+                      responseData.data ||
+                      responseData;
                   }
                 }
-                
+
                 // Ensure list is array and filter nulls
                 if (!Array.isArray(list)) {
                   list = [];
                 }
-                list = list.filter(item => item != null && typeof item === 'object');
-                
+                list = list.filter((item) => item != null && typeof item === 'object');
+
                 console.log(`[Overwrite] Found ${list.length} valid items`);
-                
+
                 // Find existing record based on unique field (with null checks)
                 let existingId = null;
                 if (type === 'devices' || type === 'sensors') {
-                  const found = list.find(d => d && d.sn && item.sn && d.sn === item.sn);
+                  const found = list.find((d) => d && d.sn && item.sn && d.sn === item.sn);
                   existingId = found?.id || null;
                 } else if (type === 'trucks') {
-                  const found = list.find(t => t && t.plate && item.plate && t.plate === item.plate);
+                  const found = list.find(
+                    (t) => t && t.plate && item.plate && t.plate === item.plate
+                  );
                   existingId = found?.id || null;
                 } else if (type === 'drivers') {
-                  const found = list.find(d => d && d.name && item.name && d.name === item.name);
+                  const found = list.find((d) => d && d.name && item.name && d.name === item.name);
                   existingId = found?.id || null;
                 } else if (type === 'vendors') {
-                  const found = list.find(v => v && (v.name_vendor || v.name) && item.name_vendor && 
-                                              (v.name_vendor === item.name_vendor || v.name === item.name_vendor));
+                  const found = list.find(
+                    (v) =>
+                      v &&
+                      (v.name_vendor || v.name) &&
+                      item.name_vendor &&
+                      (v.name_vendor === item.name_vendor || v.name === item.name_vendor)
+                  );
                   existingId = found?.id || null;
                 }
 
@@ -633,7 +752,7 @@ const MasterData = () => {
                 // If update fails, count as skipped
                 skippedCount++;
               }
-              setImportProgress(prev => ({ ...prev, current: i + 1 }));
+              setImportProgress((prev) => ({ ...prev, current: i + 1 }));
               continue;
             }
           } else {
@@ -644,35 +763,35 @@ const MasterData = () => {
             }
 
             const rowIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
-            
+
             // Build comprehensive error message
             let errorMsg = `Import stopped at row ${i + 2}`;
             if (rowIdentifier !== `Row ${i + 2}`) {
               errorMsg += ` (${rowIdentifier})`;
             }
             errorMsg += ':\n\n';
-            
+
             // Add validation errors or general error message
             if (errorDetails) {
               errorMsg += `❌ Validation Errors:\n${errorDetails}`;
             } else {
               errorMsg += `❌ Error: ${errorMessage}`;
             }
-            
+
             // Add success info if any
             if (successCount + updatedCount > 0) {
               errorMsg += `\n\n✅ ${successCount + updatedCount} record(s) were successfully imported before this error.`;
             }
-            
+
             errorMsg += '\n\n💡 Please fix the data and try again.';
 
             setAlertModal({
               isOpen: true,
               type: 'error',
               title: 'Import Failed',
-              message: errorMsg
+              message: errorMsg,
             });
-            
+
             // Reset states
             setApplyToAll(false);
             setUserDecision(null);
@@ -683,7 +802,7 @@ const MasterData = () => {
             // This block is handled above with modal - should not reach here
             console.error('[Import] Unexpected: Reached old duplicate code block');
             skippedCount++;
-            setImportProgress(prev => ({ ...prev, current: i + 1 }));
+            setImportProgress((prev) => ({ ...prev, current: i + 1 }));
             continue;
           } else {
             // Non-duplicate error: stop import and show error
@@ -693,42 +812,42 @@ const MasterData = () => {
             }
 
             const rowIdentifier = item[Object.keys(item)[0]] || `Row ${i + 2}`;
-            
+
             // Build comprehensive error message
             let errorMsg = `Import stopped at row ${i + 2}`;
             if (rowIdentifier !== `Row ${i + 2}`) {
               errorMsg += ` (${rowIdentifier})`;
             }
             errorMsg += ':\n\n';
-            
+
             // Add validation errors or general error message
             if (errorDetails) {
               errorMsg += `❌ Validation Errors:\n${errorDetails}`;
             } else {
               errorMsg += `❌ Error: ${errorMessage}`;
             }
-            
+
             // Add success info if any
             if (successCount + updatedCount > 0) {
               errorMsg += `\n\n✅ ${successCount + updatedCount} record(s) were successfully imported before this error.`;
             }
-            
+
             errorMsg += '\n\n💡 Please fix the data in your CSV file and try again.';
 
             setAlertModal({
               isOpen: true,
               type: 'error',
               title: 'Import Failed - Validation Error',
-              message: errorMsg
+              message: errorMsg,
             });
-            
+
             // Reset states
             setApplyToAll(false);
             setUserDecision(null);
             return;
           }
         }
-        setImportProgress(prev => ({ ...prev, current: i + 1 }));
+        setImportProgress((prev) => ({ ...prev, current: i + 1 }));
       }
 
       // Finish import successfully
@@ -738,35 +857,35 @@ const MasterData = () => {
 
       // Build result message
       const totalProcessed = successCount + updatedCount + skippedCount;
-      
+
       let message = `Import Complete!\n\n`;
       message += `✅ Successfully Created: ${successCount}\n`;
       if (updatedCount > 0) message += `🔄 Successfully Updated: ${updatedCount}\n`;
       if (skippedCount > 0) message += `⏭️ Skipped (already exists): ${skippedCount}\n`;
       message += `\n📊 Total Rows Processed: ${totalProcessed} of ${items.length}`;
 
-      setAlertModal({ 
-        isOpen: true, 
-        type: 'success', 
-        title: '✅ Import Success', 
-        message: message
+      setAlertModal({
+        isOpen: true,
+        type: 'success',
+        title: '✅ Import Success',
+        message: message,
       });
 
       if (masterDataImportRef.current) {
         masterDataImportRef.current.value = '';
       }
-      
+
       // Reset states
       setApplyToAll(false);
       setUserDecision(null);
     } catch (error) {
       console.error(`Failed to import ${type}:`, error);
       setImportProgress({ show: false, current: 0, total: 0, errors: [] });
-      setAlertModal({ 
-        isOpen: true, 
-        type: 'error', 
-        title: 'Import Failed', 
-        message: `Failed to process CSV file: ${error.message}` 
+      setAlertModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Import Failed',
+        message: `Failed to process CSV file: ${error.message}`,
       });
       // Reset states
       setApplyToAll(false);
@@ -823,7 +942,11 @@ const MasterData = () => {
             <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
               <h4 className="text-sm font-semibold text-purple-900 mb-2 flex items-center">
                 <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 Bulk Import/Export Instructions
               </h4>
@@ -847,7 +970,7 @@ const MasterData = () => {
                   { id: 'sensors', name: 'Sensors', icon: SignalIcon, color: 'green' },
                   { id: 'trucks', name: 'Trucks', icon: TruckIcon, color: 'orange' },
                   { id: 'drivers', name: 'Drivers', icon: UserIcon, color: 'purple' },
-                  { id: 'vendors', name: 'Vendors', icon: BuildingOfficeIcon, color: 'indigo' }
+                  { id: 'vendors', name: 'Vendors', icon: BuildingOfficeIcon, color: 'indigo' },
                 ].map((type) => {
                   const Icon = type.icon;
                   const isSelected = selectedDataType === type.id;
@@ -861,12 +984,16 @@ const MasterData = () => {
                           : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                     >
-                      <Icon className={`h-8 w-8 mb-2 ${
-                        isSelected ? `text-${type.color}-600` : 'text-gray-400'
-                      }`} />
-                      <span className={`text-sm font-medium ${
-                        isSelected ? `text-${type.color}-700` : 'text-gray-600'
-                      }`}>
+                      <Icon
+                        className={`h-8 w-8 mb-2 ${
+                          isSelected ? `text-${type.color}-600` : 'text-gray-400'
+                        }`}
+                      />
+                      <span
+                        className={`text-sm font-medium ${
+                          isSelected ? `text-${type.color}-700` : 'text-gray-600'
+                        }`}
+                      >
                         {type.name}
                       </span>
                     </button>
@@ -940,7 +1067,7 @@ const MasterData = () => {
                 <p className="text-xs text-indigo-700 mb-3">
                   Upload CSV file to create multiple {selectedDataType}
                 </p>
-                
+
                 {/* Import Mode Selector */}
                 <button
                   onClick={() => masterDataImportRef.current?.click()}
@@ -961,14 +1088,18 @@ const MasterData = () => {
             {/* Data Format Reference */}
             <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
               <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                CSV Format for {selectedDataType.charAt(0).toUpperCase() + selectedDataType.slice(1)}
+                CSV Format for{' '}
+                {selectedDataType.charAt(0).toUpperCase() + selectedDataType.slice(1)}
               </h4>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs">
                   <thead>
                     <tr className="bg-gray-100">
                       {getMasterDataTemplate(selectedDataType).headers.map((header, idx) => (
-                        <th key={idx} className="px-3 py-2 text-left font-semibold text-gray-700 border-b border-gray-300">
+                        <th
+                          key={idx}
+                          className="px-3 py-2 text-left font-semibold text-gray-700 border-b border-gray-300"
+                        >
                           {header}
                         </th>
                       ))}
@@ -986,9 +1117,11 @@ const MasterData = () => {
                 </table>
               </div>
               <p className="text-xs text-gray-500 mt-3">
-                <strong>Note:</strong> The first row must contain the column names (headers), the following rows are the data.
+                <strong>Note:</strong> The first row must contain the column names (headers), the
+                following rows are the data.
                 <br />
-                <strong>✓ Column order is flexible</strong> - what matters is that the column names must match the example above.
+                <strong>✓ Column order is flexible</strong> - what matters is that the column names
+                must match the example above.
               </p>
             </div>
 
@@ -996,21 +1129,29 @@ const MasterData = () => {
             <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
                 <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 Field Requirements & Validation
               </h4>
-              
+
               {selectedDataType === 'devices' && (
                 <div className="space-y-2 text-xs text-blue-900">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">sn:</span>
-                      <span className="text-red-700 font-medium">Required, unique Serial Number (max 50 chars) e.g: DEV001</span>
+                      <span className="text-red-700 font-medium">
+                        Required, unique Serial Number (max 50 chars) e.g: DEV001
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">truck_id:</span>
-                      <span className="text-red-700 font-medium">Required, truck ID (must exist in database)</span>
+                      <span className="text-red-700 font-medium">
+                        Required, truck ID (must exist in database)
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">sim_number:</span>
@@ -1018,7 +1159,9 @@ const MasterData = () => {
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">status:</span>
-                      <span>Optional, default: active (options: active, inactive, maintenance)</span>
+                      <span>
+                        Optional, default: active (options: active, inactive, maintenance)
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1029,15 +1172,21 @@ const MasterData = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">sn:</span>
-                      <span className="text-red-700 font-medium">Required, unique Serial Number (max 50 chars) e.g: SENS001</span>
+                      <span className="text-red-700 font-medium">
+                        Required, unique Serial Number (max 50 chars) e.g: SENS001
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">device_id:</span>
-                      <span className="text-red-700 font-medium">Required, device ID (must exist in database)</span>
+                      <span className="text-red-700 font-medium">
+                        Required, device ID (must exist in database)
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">tireNo:</span>
-                      <span className="text-red-700 font-medium">Required, tire position (number 1-10)</span>
+                      <span className="text-red-700 font-medium">
+                        Required, tire position (number 1-10)
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">simNumber:</span>
@@ -1049,7 +1198,9 @@ const MasterData = () => {
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">status:</span>
-                      <span>Optional, default: active (options: active, inactive, maintenance)</span>
+                      <span>
+                        Optional, default: active (options: active, inactive, maintenance)
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1060,11 +1211,15 @@ const MasterData = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">name:</span>
-                      <span className="text-red-700 font-medium">Required, truck name/ID (max 255 chars) e.g: TRUCK-01</span>
+                      <span className="text-red-700 font-medium">
+                        Required, truck name/ID (max 255 chars) e.g: TRUCK-01
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">plate:</span>
-                      <span className="text-red-700 font-medium">Required, license plate (max 50 chars), unique. E.g: B 1234 XYZ</span>
+                      <span className="text-red-700 font-medium">
+                        Required, license plate (max 50 chars), unique. E.g: B 1234 XYZ
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">vin:</span>
@@ -1088,7 +1243,9 @@ const MasterData = () => {
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">status:</span>
-                      <span>Optional, default: active (options: active, inactive, maintenance)</span>
+                      <span>
+                        Optional, default: active (options: active, inactive, maintenance)
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1099,19 +1256,27 @@ const MasterData = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">name:</span>
-                      <span className="text-red-700 font-medium">Required, driver full name (max 255 chars)</span>
+                      <span className="text-red-700 font-medium">
+                        Required, driver full name (max 255 chars)
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">license_number:</span>
-                      <span className="text-red-700 font-medium">Required, license number (max 50 chars) e.g: SIM-A-12345</span>
+                      <span className="text-red-700 font-medium">
+                        Required, license number (max 50 chars) e.g: SIM-A-12345
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">license_type:</span>
-                      <span className="text-red-700 font-medium">Required, license type (A/B1/B2/C) max 20 chars</span>
+                      <span className="text-red-700 font-medium">
+                        Required, license type (A/B1/B2/C) max 20 chars
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">license_expiry:</span>
-                      <span className="text-red-700 font-medium">Required, license expiry date (format: YYYY-MM-DD)</span>
+                      <span className="text-red-700 font-medium">
+                        Required, license expiry date (format: YYYY-MM-DD)
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">phone:</span>
@@ -1138,7 +1303,9 @@ const MasterData = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">name_vendor:</span>
-                      <span className="text-red-700 font-medium">Required, vendor name (max 255 chars)</span>
+                      <span className="text-red-700 font-medium">
+                        Required, vendor name (max 255 chars)
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="font-semibold mr-2 min-w-[140px]">address:</span>
@@ -1162,8 +1329,8 @@ const MasterData = () => {
 
               <div className="mt-4 pt-3 border-t border-blue-300">
                 <p className="text-xs text-blue-800">
-                  <strong>⚠️ Important:</strong> Fields marked in red are REQUIRED or have specific format requirements. 
-                  Make sure data matches the format to avoid import errors.
+                  <strong>⚠️ Important:</strong> Fields marked in red are REQUIRED or have specific
+                  format requirements. Make sure data matches the format to avoid import errors.
                 </p>
               </div>
             </div>
@@ -1194,7 +1361,6 @@ const MasterData = () => {
         onConfirm={() => setAlertModal({ ...alertModal, isOpen: false })}
         confirmText="OK"
       />
-
     </TailwindLayout>
   );
 };

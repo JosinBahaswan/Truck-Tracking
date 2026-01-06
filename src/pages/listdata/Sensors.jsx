@@ -132,15 +132,15 @@ const Sensors = () => {
 
   const confirmDelete = async (id) => {
     setAlert({ ...alert, isOpen: false });
-    
+
     try {
       console.log('🗑️ Deleting sensor:', id);
       await devicesApi.deleteSensor(id);
       console.log('✅ Sensor deleted successfully');
-      
+
       // Reload data dari server untuk memastikan sinkronisasi
       await fetchSensors();
-      
+
       setAlert({
         isOpen: true,
         type: 'success',
@@ -153,7 +153,7 @@ const Sensors = () => {
     } catch (error) {
       console.error('❌ Failed to delete sensor:', error);
       const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
-      
+
       setAlert({
         isOpen: true,
         type: 'error',

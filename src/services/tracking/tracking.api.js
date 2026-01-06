@@ -15,13 +15,13 @@ const buildApiUrl = (endpoint) => {
     console.error('❌ TRACKING_CONFIG.BASE_URL is not configured');
     return '';
   }
-  
+
   // Remove /api suffix from base URL if present and endpoint starts with /api
   let cleanBaseUrl = baseUrl;
   if (baseUrl.endsWith('/api') && endpoint.startsWith('/api')) {
     cleanBaseUrl = baseUrl.slice(0, -4);
   }
-  
+
   return `${cleanBaseUrl}${endpoint}`;
 };
 
@@ -35,7 +35,7 @@ const fetchWithTimeout = async (url, options = {}) => {
   try {
     // Get auth token from localStorage
     const token = localStorage.getItem('authToken');
-    
+
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
@@ -56,7 +56,7 @@ const fetchWithTimeout = async (url, options = {}) => {
     return data;
   } catch (error) {
     clearTimeout(timeout);
-    
+
     if (error.name === 'AbortError') {
       throw new Error('Request timeout');
     }
@@ -67,9 +67,9 @@ const fetchWithTimeout = async (url, options = {}) => {
 /**
  * Get all trucks with live location
  * Endpoint: GET /api/trucks/live-tracking
- * 
+ *
  * @returns {Promise<Object>} Response with trucks array and summary
- * 
+ *
  * Response structure:
  * {
  *   success: true,
@@ -99,13 +99,13 @@ export const getLiveTracking = async () => {
   try {
     const url = buildApiUrl('/api/trucks/live-tracking');
     console.log('🔄 Fetching live tracking data from:', url);
-    
+
     const data = await fetchWithTimeout(url);
-    
+
     if (data.success) {
       console.log(`✅ Live tracking data loaded: ${data.data?.trucks?.length || 0} trucks`);
     }
-    
+
     return data;
   } catch (error) {
     console.error('❌ Failed to fetch live tracking:', error);
@@ -116,10 +116,10 @@ export const getLiveTracking = async () => {
 /**
  * Get single truck tracking with history
  * Endpoint: GET /api/trucks/:id/tracking
- * 
+ *
  * @param {number|string} truckId - Truck ID
  * @returns {Promise<Object>} Response with truck details and location history (all points)
- * 
+ *
  * Response structure:
  * {
  *   success: true,
@@ -148,18 +148,18 @@ export const getTruckTracking = async (truckId) => {
     if (!truckId) {
       throw new Error('Truck ID is required');
     }
-    
+
     // No limit - get all history points from backend
     const url = buildApiUrl(`/api/trucks/${truckId}/tracking`);
     console.log(`🔄 Fetching all tracking data for truck ${truckId} from:`, url);
-    
+
     const data = await fetchWithTimeout(url);
-    
+
     if (data.success) {
       const historyCount = data.data?.location_history?.length || 0;
       console.log(`✅ Truck ${truckId} tracking loaded: ${historyCount} history points (all data)`);
     }
-    
+
     return data;
   } catch (error) {
     console.error(`❌ Failed to fetch truck ${truckId} tracking:`, error);

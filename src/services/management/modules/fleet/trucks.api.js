@@ -27,7 +27,7 @@ export const trucksApi = {
 
       console.log('🚛 Fetching trucks from:', url);
       const response = await api2Instance.get(url);
-      
+
       // Debug: log raw response structure
       console.log('🔍 Raw response structure:', {
         hasResponse: !!response,
@@ -36,12 +36,15 @@ export const trucksApi = {
         dataTrucks: response?.data?.trucks?.length,
         directTrucks: response?.trucks?.length,
         responseKeys: response ? Object.keys(response) : [],
-        dataKeys: response?.data ? Object.keys(response?.data) : []
+        dataKeys: response?.data ? Object.keys(response?.data) : [],
       });
-      
+
       console.log(
         '✅ Trucks data loaded:',
-        response?.data?.trucks?.length || response?.trucks?.length || response?.data?.length || 'unknown count',
+        response?.data?.trucks?.length ||
+          response?.trucks?.length ||
+          response?.data?.length ||
+          'unknown count',
         'trucks'
       );
       return response;

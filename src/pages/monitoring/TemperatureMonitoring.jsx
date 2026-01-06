@@ -29,7 +29,7 @@ export default function TemperatureMonitoring() {
         console.log('📡 Loading temperature data from backend...');
 
         const response = await monitoringAPI.getTemperatureMonitoring();
-        
+
         if (!response.success) {
           throw new Error('Failed to load temperature data');
         }

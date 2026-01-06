@@ -92,7 +92,12 @@ export default function DriverForm() {
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [validationErrors, setValidationErrors] = React.useState([]);
-  const [alertModal, setAlertModal] = React.useState({ isOpen: false, type: 'info', title: '', message: '' });
+  const [alertModal, setAlertModal] = React.useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
 
   // Load driver data if editing and vendors
   React.useEffect(() => {
@@ -134,40 +139,40 @@ export default function DriverForm() {
             } else {
               console.warn('⚠️ No driver data found in response');
               setError('Driver data not found');
-              setAlertModal({ 
-                isOpen: true, 
-                type: 'error', 
-                title: 'Error', 
-                message: 'Driver data not found. Redirecting to drivers list.' 
+              setAlertModal({
+                isOpen: true,
+                type: 'error',
+                title: 'Error',
+                message: 'Driver data not found. Redirecting to drivers list.',
               });
               setTimeout(() => navigate('/drivers'), 2000);
             }
           } catch (driverErr) {
             console.error('❌ Failed to load driver data:', driverErr);
             setError(driverErr.message || 'Failed to load driver data');
-            setAlertModal({ 
-              isOpen: true, 
-              type: 'error', 
-              title: 'Error', 
-              message: 'Failed to load driver data. Please try again.' 
+            setAlertModal({
+              isOpen: true,
+              type: 'error',
+              title: 'Error',
+              message: 'Failed to load driver data. Please try again.',
             });
           }
         }
       } catch (err) {
         console.error('❌ Failed to load data:', err);
         setError(err.message || 'Failed to load data');
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'error', 
-          title: 'Error', 
-          message: 'Failed to load form data. Please check your connection.' 
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to load form data. Please check your connection.',
         });
       } finally {
         setLoading(false);
       }
     };
     loadData();
-  }, [id, isEdit]);
+  }, [id, isEdit, navigate]);
 
   const update = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
@@ -179,7 +184,12 @@ export default function DriverForm() {
 
       // Basic frontend validation
       if (!form.name || !form.license_number) {
-        setAlertModal({ isOpen: true, type: 'error', title: 'Validation Error', message: 'Name and License Number are required fields!' });
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Validation Error',
+          message: 'Name and License Number are required fields!',
+        });
         return;
       }
 
@@ -217,14 +227,24 @@ export default function DriverForm() {
 
         response = await driversApi.update(id, driverData);
         console.log('✅ Driver updated successfully:', response);
-        setAlertModal({ isOpen: true, type: 'success', title: 'Success!', message: 'Driver updated successfully!' });
+        setAlertModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Success!',
+          message: 'Driver updated successfully!',
+        });
         setTimeout(() => navigate('/drivers'), 1500);
       } else {
         // CREATE new driver
         console.log('➕ Creating new driver', driverData);
         response = await driversApi.create(driverData);
         console.log('✅ Driver created successfully:', response);
-        setAlertModal({ isOpen: true, type: 'success', title: 'Success!', message: 'Driver created successfully!' });
+        setAlertModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Success!',
+          message: 'Driver created successfully!',
+        });
         setTimeout(() => navigate('/drivers'), 1500);
       }
     } catch (err) {
@@ -234,11 +254,21 @@ export default function DriverForm() {
       if (err?.data?.errors && Array.isArray(err.data.errors)) {
         setValidationErrors(err.data.errors);
         const errorMessages = err.data.errors.map((e) => `${e.field}: ${e.message}`).join('\n');
-        setAlertModal({ isOpen: true, type: 'error', title: 'Validation Error', message: errorMessages });
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Validation Error',
+          message: errorMessages,
+        });
       } else {
         const errorMsg = err.message || err?.data?.message || 'Unknown error';
         setError(errorMsg);
-        setAlertModal({ isOpen: true, type: 'error', title: 'Failed', message: `Failed to save driver: ${errorMsg}` });
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Failed',
+          message: `Failed to save driver: ${errorMsg}`,
+        });
       }
     } finally {
       setSaving(false);

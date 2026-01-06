@@ -72,7 +72,12 @@ export default function SensorForm() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState(null);
-  const [alertModal, setAlertModal] = React.useState({ isOpen: false, type: 'info', title: '', message: '' });
+  const [alertModal, setAlertModal] = React.useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
 
   // Tire positions for TPMS sensors (1-20 for typical mining trucks)
   const tirePositions = Array.from({ length: 20 }, (_, i) => ({
@@ -141,11 +146,11 @@ export default function SensorForm() {
 
       // Frontend Validation dengan pesan yang spesifik
       const errors = [];
-      
+
       if (!form.device_id) {
         errors.push('• Device is required (please select a device)');
       }
-      
+
       if (!form.sn?.trim()) {
         errors.push('• Serial Number is required');
       } else if (form.sn.length < 3) {
@@ -155,27 +160,27 @@ export default function SensorForm() {
       } else if (!/^[A-Za-z0-9_-]+$/.test(form.sn)) {
         errors.push('• Serial Number can only contain letters, numbers, hyphens and underscores');
       }
-      
+
       if (!form.tireNo) {
         errors.push('• Tire Number is required');
       } else if (form.tireNo < 1 || form.tireNo > 24) {
         errors.push('• Tire Number must be between 1-24');
       }
-      
+
       if (form.simNumber && form.simNumber.length > 20) {
         errors.push('• SIM Number must not exceed 20 characters');
       }
-      
+
       if (form.sensorNo && (form.sensorNo < 1 || form.sensorNo > 100)) {
         errors.push('• Sensor Number must be between 1-100');
       }
 
       if (errors.length > 0) {
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'warning', 
-          title: 'Validation Error', 
-          message: `Please fix the following errors:\n\n${errors.join('\n')}` 
+        setAlertModal({
+          isOpen: true,
+          type: 'warning',
+          title: 'Validation Error',
+          message: `Please fix the following errors:\n\n${errors.join('\n')}`,
         });
         setSaving(false);
         return;
@@ -197,7 +202,12 @@ export default function SensorForm() {
         console.log('➕ Creating new sensor');
         response = await devicesApi.createSensor(sensorData);
         console.log('✅ Sensor created successfully:', response);
-        setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Sensor created successfully!' });
+        setAlertModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Success',
+          message: 'Sensor created successfully!',
+        });
         setTimeout(() => {
           navigate('/sensors');
         }, 1500);
@@ -221,7 +231,12 @@ export default function SensorForm() {
 
         response = await devicesApi.updateSensor(parseInt(id), updateData);
         console.log('✅ Sensor updated successfully:', response);
-        setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Sensor updated successfully!' });
+        setAlertModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Success',
+          message: 'Sensor updated successfully!',
+        });
         setTimeout(() => {
           navigate('/devices');
         }, 1500);
@@ -229,25 +244,25 @@ export default function SensorForm() {
     } catch (err) {
       console.error('❌ Failed to save sensor:', err);
       setError(err.message || 'Failed to save sensor');
-      
+
       // Handle validation errors from backend
       if (err?.response?.data?.errors && Array.isArray(err.response.data.errors)) {
         const errorMessages = err.response.data.errors
           .map((e) => `• ${e.field}: ${e.message}`)
           .join('\n');
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'error', 
-          title: 'Validation Error', 
-          message: `Please fix the following errors:\n\n${errorMessages}` 
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Validation Error',
+          message: `Please fix the following errors:\n\n${errorMessages}`,
         });
       } else {
         const errorMsg = err.response?.data?.message || err.message || 'Failed to save sensor data';
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'error', 
-          title: 'Error', 
-          message: `Failed to save sensor:\n${errorMsg}` 
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Error',
+          message: `Failed to save sensor:\n${errorMsg}`,
         });
       }
     } finally {

@@ -10,33 +10,23 @@ import Login from '../components/auth/Login';
 
 // Pages
 import Dashboard from '../pages/Dashboard';
-import FleetManagement from '../pages/FleetManagement';
-import FleetGroups from '../pages/FleetGroups';
 import Devices from '../pages/listdata/Devices';
 import Sensors from '../pages/listdata/Sensors';
-import VehicleDeviceStatus from '../pages/monitoring/VehicleDeviceStatus';
 import LiveTracking from '../pages/LiveTracking';
 import HistoryTracking from '../pages/HistoryTracking';
-import Analytics from '../pages/Analytics';
-import Reports from '../pages/Reports';
 import Alerts from '../pages/listdata/Alerts';
 import Settings from '../pages/Settings';
 import TrucksFormList from '../pages/listdata/TrucksList';
 import TruckForm from '../pages/form/TruckForm';
-// Monitoring Pages - New Unified Design
+// Monitoring Pages
 import SensorMonitoring from '../pages/monitoring/SensorMonitoring';
-import FuelMonitoring from '../pages/monitoring/FuelMonitoring';
-import LiveTireView from '../pages/monitoring/LiveTireView';
 import VendorsList from '../pages/listdata/VendorsList';
 import VendorForm from '../pages/form/VendorForm';
 import DriversList from '../pages/listdata/DriversList';
 import DriverForm from '../pages/form/DriverForm';
 import DeviceForm from '../pages/form/DeviceForm';
 import SensorForm from '../pages/form/SensorForm';
-import ChartAreaGradient from '../components/chart/AreaChartGradient';
-import ChartPieLabel from '../components/chart/PieChartLabel';
 import MasterData from '../pages/MasterData';
-// import DonutChartText from '../components/chart/PieChartDonut';
 
 /**
  * Application Routes Configuration
@@ -45,31 +35,6 @@ const AppRoutes = () => {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route
-        path="/chart/area-gradient"
-        element={
-          <ProtectedRoute>
-            <ChartAreaGradient />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/chart/pie-label"
-        element={
-          <ProtectedRoute>
-            <ChartPieLabel />
-          </ProtectedRoute>
-        }
-      />
-      {/* <Route
-        path="/chart/pie-donut-text"
-        element={
-          <ProtectedRoute>
-            <DonutChartText />
-          </ProtectedRoute>
-        }
-      /> */}
-
       <Route
         path="/login"
         element={
@@ -103,48 +68,6 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <HistoryTracking />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Protected Routes - Fleet Management */}
-      <Route
-        path="/fleet"
-        element={
-          <ProtectedRoute>
-            <FleetManagement />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/fleet/status"
-        element={
-          <ProtectedRoute>
-            <VehicleDeviceStatus />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/fleet/add"
-        element={
-          <ProtectedRoute>
-            <FleetManagement />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/fleet/groups"
-        element={
-          <ProtectedRoute>
-            <FleetGroups />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/fleet/vehicles"
-        element={
-          <ProtectedRoute>
-            <TrucksFormList />
           </ProtectedRoute>
         }
       />
@@ -201,46 +124,12 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Protected Routes - Telemetry (OLD ROUTES - COMMENTED) */}
-      {/* <Route
-        path="/telemetry/tires"
-        element={<Navigate to="/monitoring/tires" replace />}
-      /> */}
-      {/* <Route
-        path="/telemetry/temperature"
-        element={<Navigate to="/monitoring/temperature" replace />}
-      /> */}
-      {/* <Route 
-        path="/telemetry/fuel" 
-        element={<Navigate to="/monitoring/fuel" replace />} 
-      /> */}
-
-      {/* Protected Routes - Monitoring (NEW UNIFIED DESIGN) */}
+      {/* Protected Routes - Monitoring */}
       <Route
         path="/monitoring/sensors"
         element={
           <ProtectedRoute>
             <SensorMonitoring />
-          </ProtectedRoute>
-        }
-      />
-      {/* Redirect old routes to new unified monitoring */}
-      <Route path="/monitoring/tires" element={<Navigate to="/monitoring/sensors" replace />} />
-      <Route path="/monitoring/temperature" element={<Navigate to="/monitoring/sensors" replace />} />
-      
-      <Route
-        path="/monitoring/fuel"
-        element={
-          <ProtectedRoute>
-            <FuelMonitoring />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/monitoring/live-view"
-        element={
-          <ProtectedRoute>
-            <LiveTireView />
           </ProtectedRoute>
         }
       />
@@ -277,24 +166,6 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <DriverForm />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Protected Routes - Analytics & Reports */}
-      <Route
-        path="/analytics"
-        element={
-          <ProtectedRoute>
-            <Analytics />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/reports"
-        element={
-          <ProtectedRoute>
-            <Reports />
           </ProtectedRoute>
         }
       />

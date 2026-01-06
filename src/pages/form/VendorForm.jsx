@@ -48,7 +48,12 @@ export default function VendorForm() {
   });
   const [loading, setLoading] = React.useState(!isNew);
   const [saving, setSaving] = React.useState(false);
-  const [alertModal, setAlertModal] = React.useState({ isOpen: false, type: 'info', title: '', message: '' });
+  const [alertModal, setAlertModal] = React.useState({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
 
   useEffect(() => {
     if (isNew) return;
@@ -84,7 +89,7 @@ export default function VendorForm() {
 
       // Frontend Validation dengan pesan yang spesifik
       const errors = [];
-      
+
       if (!form.name_vendor?.trim()) {
         errors.push('• Vendor Name is required');
       } else if (form.name_vendor.length < 2) {
@@ -92,29 +97,29 @@ export default function VendorForm() {
       } else if (form.name_vendor.length > 255) {
         errors.push('• Vendor Name must not exceed 255 characters');
       }
-      
+
       if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
         errors.push('• Email format is invalid (example: user@domain.com)');
       }
-      
+
       if (form.telephone && form.telephone.length > 50) {
         errors.push('• Telephone number must not exceed 50 characters');
       }
-      
+
       if (form.address && form.address.length > 500) {
         errors.push('• Address must not exceed 500 characters');
       }
-      
+
       if (form.contact_person && form.contact_person.length > 255) {
         errors.push('• Contact Person must not exceed 255 characters');
       }
 
       if (errors.length > 0) {
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'warning', 
-          title: 'Validation Error', 
-          message: `Please fix the following errors:\n\n${errors.join('\n')}` 
+        setAlertModal({
+          isOpen: true,
+          type: 'warning',
+          title: 'Validation Error',
+          message: `Please fix the following errors:\n\n${errors.join('\n')}`,
         });
         setSaving(false);
         return;
@@ -141,13 +146,23 @@ export default function VendorForm() {
         console.log('🔄 Updating vendor:', id, vendorData);
         response = await vendorsApi.update(id, vendorData);
         console.log('✅ Vendor updated successfully:', response);
-        setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Vendor updated successfully!' });
+        setAlertModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Success',
+          message: 'Vendor updated successfully!',
+        });
       } else {
         // CREATE new vendor
         console.log('➕ Creating new vendor', vendorData);
         response = await vendorsApi.create(vendorData);
         console.log('✅ Vendor created successfully:', response);
-        setAlertModal({ isOpen: true, type: 'success', title: 'Success', message: 'Vendor created successfully!' });
+        setAlertModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Success',
+          message: 'Vendor created successfully!',
+        });
       }
 
       setTimeout(() => {
@@ -155,25 +170,26 @@ export default function VendorForm() {
       }, 1500);
     } catch (error) {
       console.error('❌ Failed to save vendor:', error);
-      
+
       // Handle validation errors from backend
       if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
         const errorMessages = error.response.data.errors
           .map((e) => `• ${e.field}: ${e.message}`)
           .join('\n');
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'error', 
-          title: 'Validation Error', 
-          message: `Please fix the following errors:\n\n${errorMessages}` 
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Validation Error',
+          message: `Please fix the following errors:\n\n${errorMessages}`,
         });
       } else {
-        const errorMsg = error.response?.data?.message || error.message || 'Failed to save vendor data';
-        setAlertModal({ 
-          isOpen: true, 
-          type: 'error', 
-          title: 'Error', 
-          message: `Failed to save vendor:\n${errorMsg}` 
+        const errorMsg =
+          error.response?.data?.message || error.message || 'Failed to save vendor data';
+        setAlertModal({
+          isOpen: true,
+          type: 'error',
+          title: 'Error',
+          message: `Failed to save vendor:\n${errorMsg}`,
         });
       }
     } finally {

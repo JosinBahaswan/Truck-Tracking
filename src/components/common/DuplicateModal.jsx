@@ -3,7 +3,7 @@ import React from 'react';
 /**
  * Duplicate Handling Modal Component
  * Shows when duplicate data is detected during import
- * 
+ *
  * @param {boolean} isOpen - Modal open state
  * @param {string} itemName - Name/identifier of duplicate item
  * @param {string} dataType - Type of data (driver, truck, etc)
@@ -48,24 +48,18 @@ const DuplicateModal = ({
         </div>
 
         {/* Title */}
-        <h2 className="text-2xl font-bold text-center mb-2 text-gray-800">
-          Data Already Exists
-        </h2>
+        <h2 className="text-2xl font-bold text-center mb-2 text-gray-800">Data Already Exists</h2>
 
         {/* Divider */}
         <div className="w-16 h-1 bg-amber-400 rounded mx-auto mb-4" />
 
         {/* Message */}
         <div className="text-center mb-6">
-          <p className="text-gray-600 mb-2">
-            {dataType} with name
-          </p>
+          <p className="text-gray-600 mb-2">{dataType} with name</p>
           <p className="text-lg font-semibold text-gray-800 bg-amber-50 px-4 py-2 rounded-lg inline-block mb-2">
             "{itemName}"
           </p>
-          <p className="text-gray-600">
-            already exists in the database.
-          </p>
+          <p className="text-gray-600">already exists in the database.</p>
           {errorMessage && (
             <p className="text-sm text-gray-500 mt-2 bg-gray-50 px-3 py-2 rounded">
               {errorMessage}
@@ -91,9 +85,7 @@ const DuplicateModal = ({
         )}
 
         {/* Action Message */}
-        <p className="text-center text-sm text-gray-500 mb-4">
-          What would you like to do?
-        </p>
+        <p className="text-center text-sm text-gray-500 mb-4">What would you like to do?</p>
 
         {/* Buttons */}
         <div className="flex flex-col gap-3">
@@ -102,17 +94,27 @@ const DuplicateModal = ({
             className="w-full px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-medium transition-all duration-200 transform hover:scale-[1.02] active:scale-95 shadow-lg flex items-center justify-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
             </svg>
             Overwrite (Replace with new data)
           </button>
-          
+
           <button
             onClick={onSkip}
             className="w-full px-6 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium transition-all duration-200 transform hover:scale-[1.02] active:scale-95 shadow-lg flex items-center justify-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             Skip (Keep existing data)
           </button>

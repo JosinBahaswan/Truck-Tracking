@@ -132,7 +132,7 @@ export const alertEventsAPI = {
         success: false,
         data: [],
         count: 0,
-        error: error.message
+        error: error.message,
       };
     }
   },

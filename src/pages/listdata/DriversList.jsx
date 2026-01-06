@@ -290,12 +290,12 @@ export default function DriversList() {
 
   const confirmDelete = async (id) => {
     setAlert({ ...alert, isOpen: false });
-    
+
     try {
       await driversApi.delete(id);
       console.log('✅ Driver deleted successfully');
       await load();
-      
+
       setAlert({
         isOpen: true,
         type: 'success',
@@ -307,7 +307,7 @@ export default function DriversList() {
       });
     } catch (error) {
       console.error('❌ Failed to delete driver:', error);
-      
+
       setAlert({
         isOpen: true,
         type: 'error',

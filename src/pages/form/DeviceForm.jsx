@@ -163,7 +163,7 @@ export default function DeviceForm() {
     try {
       // Frontend Validation dengan pesan yang spesifik
       const errors = [];
-      
+
       if (!form.sn?.trim()) {
         errors.push('• Device SN (Serial Number) is required');
       } else if (form.sn.length < 3) {
@@ -173,19 +173,22 @@ export default function DeviceForm() {
       } else if (!/^[A-Za-z0-9_-]+$/.test(form.sn)) {
         errors.push('• Device SN can only contain letters, numbers, hyphens and underscores');
       }
-      
+
       if (!form.imei?.trim()) {
         errors.push('• SIM Number is required');
       } else if (form.imei.length > 20) {
         errors.push('• SIM Number must not exceed 20 characters');
       }
-      
+
       if (!form.truck_id) {
         errors.push('• Truck is required (please select a truck)');
       }
 
       if (errors.length > 0) {
-        showAlert.warning(`Please fix the following errors:\n\n${errors.join('\n')}`, 'Validation Error');
+        showAlert.warning(
+          `Please fix the following errors:\n\n${errors.join('\n')}`,
+          'Validation Error'
+        );
         return;
       }
 
@@ -227,7 +230,10 @@ export default function DeviceForm() {
             const errorMessages = error.response.data.errors
               .map((e) => `• ${e.field}: ${e.message}`)
               .join('\n');
-            showAlert.error(`Please fix the following errors:\n\n${errorMessages}`, 'Validation Error');
+            showAlert.error(
+              `Please fix the following errors:\n\n${errorMessages}`,
+              'Validation Error'
+            );
           } else {
             const errorMessage =
               error.response?.data?.message ||
@@ -271,7 +277,10 @@ export default function DeviceForm() {
             const errorMessages = error.response.data.errors
               .map((e) => `• ${e.field}: ${e.message}`)
               .join('\n');
-            showAlert.error(`Please fix the following errors:\n\n${errorMessages}`, 'Validation Error');
+            showAlert.error(
+              `Please fix the following errors:\n\n${errorMessages}`,
+              'Validation Error'
+            );
             throw error;
           }
 

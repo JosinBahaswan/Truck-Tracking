@@ -39,20 +39,21 @@ export default function TruckImage({
     if (id) {
       const fetchTruckImage = async () => {
         try {
-          const API_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:3001';
+          const API_URL =
+            import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:3001';
           const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-          
+
           const response = await fetch(`${API_URL}/api/trucks/${id}`, {
             headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
           });
 
           if (response.ok) {
             const data = await response.json();
             const truck = data.data?.truck || data.truck || data.data || data;
-            
+
             if (truck.image) {
               // Image path is relative, prepend API_URL
               const fullImageUrl = `${API_URL}${truck.image}`;

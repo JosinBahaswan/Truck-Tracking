@@ -1,5 +1,5 @@
 // src/components/common/CommandPalette.jsx
-import React, { Fragment, useEffect, useMemo, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useState, useCallback } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { MagnifyingGlassIcon, TruckIcon, DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +34,7 @@ const CommandPalette = ({ open, setOpen }) => {
       if (e.key === 'Escape' && open) {
         setOpen(false);
       }
-      
+
       // Handle Enter key - select first result
       if (e.key === 'Enter' && open && !loading) {
         if (vehicleResults.length > 0) {
@@ -44,10 +44,10 @@ const CommandPalette = ({ open, setOpen }) => {
         }
       }
     };
-    
+
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [open, setOpen, loading, vehicleResults, deviceResults]);
+  }, [open, setOpen, loading, vehicleResults, deviceResults, onSelectVehicle, onSelectDevice]);
 
   const search = async (q) => {
     const term = q.trim().toLowerCase();
@@ -56,10 +56,10 @@ const CommandPalette = ({ open, setOpen }) => {
       setDeviceResults([]);
       return;
     }
-    
+
     setLoading(true);
     console.log('🔍 Global search for:', term);
-    
+
     try {
       // Search Vehicles (Trucks)
       let vehicles = [];
@@ -67,12 +67,13 @@ const CommandPalette = ({ open, setOpen }) => {
         console.log('📦 Searching trucks...');
         const trucksRes = await trucksApi.getAll({ limit: 100 });
         console.log('✅ Trucks response:', trucksRes);
-        
+
         if (trucksRes?.success) {
           const trucksArray = trucksRes.data?.trucks || trucksRes.data || [];
           vehicles = (Array.isArray(trucksArray) ? trucksArray : [])
             .filter((t) => {
-              const searchText = `${t.name || ''} ${t.plate_number || ''} ${t.vin || ''} ${t.id || ''}`.toLowerCase();
+              const searchText =
+                `${t.name || ''} ${t.plate_number || ''} ${t.vin || ''} ${t.id || ''}`.toLowerCase();
               return searchText.includes(term);
             })
             .slice(0, 8)
@@ -96,7 +97,7 @@ const CommandPalette = ({ open, setOpen }) => {
         console.log('📱 Searching devices...');
         const devicesRes = await devicesApi.getAll({ limit: 100 });
         console.log('✅ Devices response:', devicesRes);
-        
+
         if (devicesRes?.success) {
           const devicesArray = devicesRes.data?.devices || devicesRes.data || [];
           devices = (Array.isArray(devicesArray) ? devicesArray : [])
@@ -117,7 +118,7 @@ const CommandPalette = ({ open, setOpen }) => {
         console.error('❌ Failed to search devices:', error);
       }
       setDeviceResults(devices);
-      
+
       console.log('✅ Search complete:', { vehicles: vehicles.length, devices: devices.length });
     } catch (error) {
       console.error('❌ Global search error:', error);
@@ -132,19 +133,25 @@ const CommandPalette = ({ open, setOpen }) => {
     debounced(query);
   }, [debounced, query]);
 
-  const onSelectVehicle = (v) => {
-    console.log('🚚 Selected vehicle:', v);
-    setOpen(false);
-    // Navigate to fleet management detail page
-    navigate(`/fleet-management/trucks/${v.id}`);
-  };
+  const onSelectVehicle = useCallback(
+    (v) => {
+      console.log('🚚 Selected vehicle:', v);
+      setOpen(false);
+      // Navigate to fleet management detail page
+      navigate(`/fleet-management/trucks/${v.id}`);
+    },
+    [navigate, setOpen]
+  );
 
-  const onSelectDevice = (d) => {
-    console.log('📱 Selected device:', d);
-    setOpen(false);
-    // Navigate to devices page with search query
-    navigate(`/fleet-management/devices?search=${encodeURIComponent(d.sn)}`);
-  };
+  const onSelectDevice = useCallback(
+    (d) => {
+      console.log('📱 Selected device:', d);
+      setOpen(false);
+      // Navigate to devices page with search query
+      navigate(`/fleet-management/devices?search=${encodeURIComponent(d.sn)}`);
+    },
+    [navigate, setOpen]
+  );
 
   return (
     <Transition.Root show={open} as={Fragment}>
@@ -182,7 +189,9 @@ const CommandPalette = ({ open, setOpen }) => {
                   className="w-full bg-transparent outline-none text-sm text-slate-900 placeholder:text-slate-400"
                 />
                 <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                  <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200">ESC</kbd>
+                  <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200">
+                    ESC
+                  </kbd>
                   to close
                 </div>
               </div>
@@ -191,7 +200,9 @@ const CommandPalette = ({ open, setOpen }) => {
                 <div className="px-4 py-3">
                   <div className="flex items-center gap-2 mb-2">
                     <TruckIcon className="w-4 h-4 text-slate-400" />
-                    <div className="text-[11px] font-semibold text-slate-500 uppercase">Vehicles</div>
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase">
+                      Vehicles
+                    </div>
                   </div>
                   {loading && query && (
                     <div className="text-xs text-indigo-600 py-2">Searching vehicles...</div>
@@ -219,13 +230,15 @@ const CommandPalette = ({ open, setOpen }) => {
                                 {v.vin && <span className="ml-2">VIN: {v.vin}</span>}
                               </div>
                             </div>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              v.status === 'active' 
-                                ? 'bg-green-100 text-green-700' 
-                                : v.status === 'maintenance'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}>
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${
+                                v.status === 'active'
+                                  ? 'bg-green-100 text-green-700'
+                                  : v.status === 'maintenance'
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
                               {v.status}
                             </span>
                           </div>
@@ -234,12 +247,14 @@ const CommandPalette = ({ open, setOpen }) => {
                     ))}
                   </ul>
                 </div>
-                
+
                 {/* Devices Section */}
                 <div className="px-4 py-3">
                   <div className="flex items-center gap-2 mb-2">
                     <DevicePhoneMobileIcon className="w-4 h-4 text-slate-400" />
-                    <div className="text-[11px] font-semibold text-slate-500 uppercase">Devices</div>
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase">
+                      Devices
+                    </div>
                   </div>
                   {loading && query && (
                     <div className="text-xs text-indigo-600 py-2">Searching devices...</div>
@@ -262,15 +277,15 @@ const CommandPalette = ({ open, setOpen }) => {
                               <div className="text-sm font-semibold text-slate-800 group-hover:text-indigo-600">
                                 {d.sn}
                               </div>
-                              <div className="text-xs text-slate-500">
-                                SIM: {d.sim_number}
-                              </div>
+                              <div className="text-xs text-slate-500">SIM: {d.sim_number}</div>
                             </div>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              d.status === 'active' 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-gray-100 text-gray-700'
-                            }`}>
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${
+                                d.status === 'active'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
                               {d.status}
                             </span>
                           </div>

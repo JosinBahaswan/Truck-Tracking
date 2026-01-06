@@ -353,10 +353,10 @@ const Devices = () => {
       try {
         await deleteDevice(parseInt(device.id));
         console.log('✅ Device deleted successfully');
-        
+
         // Reload data dari server untuk memastikan sinkronisasi
         await fetchDevices();
-        
+
         showAlert.success('Device has been deleted successfully.', 'Deleted!');
       } catch (err) {
         console.error('Error deleting device:', err);

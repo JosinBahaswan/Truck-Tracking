@@ -35,14 +35,14 @@ export const authApi = {
       console.log('💾 Storing NEW token and user data (response.data.token)');
       console.log('👤 User to store:', response.data.user);
       console.log('👤 User ID:', response.data.user?.id);
-      
+
       localStorage.setItem('authToken', response.data.token);
       localStorage.setItem('token', response.data.token); // Store in both keys
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      
+
       console.log('✅ NEW Token stored (first 30):', response.data.token.substring(0, 30));
       console.log('✅ Verify stored token:', localStorage.getItem('authToken')?.substring(0, 30));
-      
+
       // Dispatch custom event to notify other components
       window.dispatchEvent(new Event('loginSuccess'));
       console.log('📢 loginSuccess event dispatched');
@@ -50,14 +50,14 @@ export const authApi = {
       // Handle case where token is at root level
       console.log('💾 Storing NEW token and user data (response.token - root level)');
       console.log('👤 User to store:', response.user || response.data?.user);
-      
+
       localStorage.setItem('authToken', response.token);
       localStorage.setItem('token', response.token); // Store in both keys
       localStorage.setItem('user', JSON.stringify(response.user || response.data?.user));
-      
+
       console.log('✅ NEW Token stored (first 30):', response.token.substring(0, 30));
       console.log('✅ Verify stored token:', localStorage.getItem('authToken')?.substring(0, 30));
-      
+
       // Dispatch custom event to notify other components
       window.dispatchEvent(new Event('loginSuccess'));
       console.log('📢 loginSuccess event dispatched');

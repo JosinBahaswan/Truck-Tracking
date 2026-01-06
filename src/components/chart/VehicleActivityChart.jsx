@@ -1,5 +1,13 @@
 import React from 'react';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import { TrendingUp, TrendingDown, Activity } from 'lucide-react';
 
 const CustomTooltip = ({ active, payload }) => {
@@ -80,7 +88,12 @@ export default function VehicleActivityChart({ data, loading }) {
               </linearGradient>
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" strokeOpacity={0.5} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="#e5e7eb"
+              strokeOpacity={0.5}
+            />
 
             <XAxis
               dataKey="month"
@@ -98,7 +111,10 @@ export default function VehicleActivityChart({ data, loading }) {
               style={{ fontSize: '12px', fill: '#6b7280' }}
             />
 
-            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(99, 102, 241, 0.1)', strokeWidth: 2 }} />
+            <Tooltip
+              content={<CustomTooltip />}
+              cursor={{ stroke: 'rgba(99, 102, 241, 0.1)', strokeWidth: 2 }}
+            />
 
             <Area
               type="monotone"
@@ -133,9 +149,7 @@ export default function VehicleActivityChart({ data, loading }) {
                 <TrendingDown className="h-5 w-5 text-red-600" />
               )}
               <span
-                className={`text-xl font-bold ${
-                  isTrendingUp ? 'text-green-600' : 'text-red-600'
-                }`}
+                className={`text-xl font-bold ${isTrendingUp ? 'text-green-600' : 'text-red-600'}`}
               >
                 {Math.abs(trend).toFixed(1)}%
               </span>

@@ -21,7 +21,9 @@ const BaseTrackingMap = ({
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [mapStyle, setMapStyle] = useState('satellite');
   const [loading, setLoading] = useState(true);
-  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
+  const [windowWidth, setWindowWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1920
+  );
   const miningBoundsRef = useRef(null);
   const initGuardRef = useRef(false);
 
@@ -322,9 +324,13 @@ const BaseTrackingMap = ({
           style={{
             // Ensure this stays below the sidebar (which uses z-50)
             zIndex: 40,
-            left: sidebarVisible 
-              ? (windowWidth < 1020 ? '315px' : '605px')
-              : (windowWidth < 1020 ? '0px' : '288px'),
+            left: sidebarVisible
+              ? windowWidth < 1020
+                ? '315px'
+                : '605px'
+              : windowWidth < 1020
+                ? '0px'
+                : '288px',
           }}
           title={sidebarVisible ? 'Hide Vehicle List' : 'Show Vehicle List'}
         >

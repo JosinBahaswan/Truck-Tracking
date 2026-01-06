@@ -1,7 +1,7 @@
 // src/pages/Dashboard.jsx
 /**
  * Dashboard Page - Fleet Management Overview
- * 
+ *
  * Features:
  * - 4 Stat Cards: Total Vehicles, Active, Maintenance, Alerts
  * - Fleet Status Pie Chart: Distribution of vehicle status
@@ -11,7 +11,7 @@
  * - Alert Trends Bar Chart: Weekly alert distribution
  * - Top Performing Vehicles: Best performing fleet
  * - Recent Alerts Timeline: Latest alerts and notifications
- * 
+ *
  * Data Sources:
  * - Backend 2 (Management API): /dashboard/stats, /alerts, /trucks
  * - Real-time updates via WebSocket
@@ -35,7 +35,7 @@ const Dashboard = () => {
             <Link
               to="/live-tracking"
               className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-indigo-700 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600 transition-all"
-            >      
+            >
               Go to Live Tracking
               <svg
                 xmlns="http://www.w3.org/2000/svg"

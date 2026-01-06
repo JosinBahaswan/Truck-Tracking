@@ -273,7 +273,8 @@ export default function VendorsList() {
       isOpen: true,
       type: 'warning',
       title: 'Delete Vendor?',
-      message: 'Are you sure you want to delete this vendor? Note: Vendors with associated trucks or drivers cannot be deleted.',
+      message:
+        'Are you sure you want to delete this vendor? Note: Vendors with associated trucks or drivers cannot be deleted.',
       confirmText: 'Delete',
       cancelText: 'Cancel',
       showCancel: true,
@@ -288,10 +289,10 @@ export default function VendorsList() {
     try {
       await vendorsApi.delete(id);
       console.log('✅ Vendor deleted successfully');
-      
+
       // Reload data dari server untuk memastikan sinkronisasi
       await load();
-      
+
       setAlert({
         isOpen: true,
         type: 'success',
@@ -304,13 +305,20 @@ export default function VendorsList() {
     } catch (err) {
       console.error('Failed to delete vendor:', err);
       const errorMsg = err.response?.data?.message || err.message || 'Unknown error';
-      
-      if (errorMsg.includes('associated') || errorMsg.includes('Cannot delete') || errorMsg.includes('active trucks') || errorMsg.includes('active drivers')) {
+
+      if (
+        errorMsg.includes('associated') ||
+        errorMsg.includes('Cannot delete') ||
+        errorMsg.includes('active trucks') ||
+        errorMsg.includes('active drivers')
+      ) {
         setAlert({
           isOpen: true,
           type: 'error',
           title: 'Cannot Delete',
-          message: errorMsg.includes('Cannot delete') ? errorMsg : 'Cannot delete vendor: This vendor has associated trucks or drivers. Please reassign or remove them first.',
+          message: errorMsg.includes('Cannot delete')
+            ? errorMsg
+            : 'Cannot delete vendor: This vendor has associated trucks or drivers. Please reassign or remove them first.',
           confirmText: 'OK',
           showCancel: false,
           onConfirm: () => setAlert({ ...alert, isOpen: false }),

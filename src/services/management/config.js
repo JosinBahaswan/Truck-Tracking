@@ -38,10 +38,13 @@ managementClient.interceptors.request.use(
     // ALWAYS read fresh token from localStorage (no caching!)
     // This ensures we get the latest token even after login/logout
     const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-    
-    console.log('🔑 [managementClient] Request interceptor - Token:', token?.substring(0, 30) + '...');
+
+    console.log(
+      '🔑 [managementClient] Request interceptor - Token:',
+      token?.substring(0, 30) + '...'
+    );
     console.log('📍 [managementClient] Request URL:', config.url);
-    
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     } else {
@@ -63,9 +66,9 @@ managementClient.interceptors.response.use(
       url: response.config?.url,
       status: response.status,
       hasData: !!response.data,
-      dataKeys: response.data ? Object.keys(response.data) : []
+      dataKeys: response.data ? Object.keys(response.data) : [],
     });
-    
+
     // Return the data directly if success
     if (response.data?.success !== false) {
       return response.data;

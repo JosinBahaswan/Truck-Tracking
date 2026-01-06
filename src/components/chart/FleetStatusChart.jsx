@@ -9,9 +9,7 @@ const CustomTooltip = ({ active, payload }) => {
         <p className="text-sm text-gray-200">
           Vehicles: <span className="font-bold text-white ml-1">{payload[0].value}</span>
         </p>
-        <p className="text-sm text-gray-300">
-          {payload[0].payload.percentage}% of total fleet
-        </p>
+        <p className="text-sm text-gray-300">{payload[0].payload.percentage}% of total fleet</p>
       </div>
     );
   }
@@ -24,16 +22,16 @@ const renderLabel = (entry) => {
 
 const FleetStatusChart = ({ data, loading }) => {
   console.log('🔵 FleetStatusChart - Received data:', data, 'Loading:', loading);
-  
+
   // Force component update when data changes
   const [chartKey, setChartKey] = React.useState(0);
-  
+
   React.useEffect(() => {
     if (data && Array.isArray(data) && data.length > 0) {
-      setChartKey(prev => prev + 1);
+      setChartKey((prev) => prev + 1);
     }
   }, [data]);
-  
+
   // Show loading skeleton first
   if (loading) {
     return (
@@ -48,7 +46,7 @@ const FleetStatusChart = ({ data, loading }) => {
       </div>
     );
   }
-  
+
   // Validate data after loading
   if (!data || !Array.isArray(data) || data.length === 0) {
     console.warn('⚠️ FleetStatusChart - Invalid or empty data');
@@ -64,7 +62,7 @@ const FleetStatusChart = ({ data, loading }) => {
       </div>
     );
   }
-  
+
   // Calculate percentages and prepare data
   const total = data.reduce((sum, item) => sum + item.value, 0);
   const chartData = data.map((item) => ({
@@ -83,7 +81,10 @@ const FleetStatusChart = ({ data, loading }) => {
   };
 
   return (
-    <div className="flex flex-col bg-white rounded-xl border border-gray-100 shadow-sm p-6" id="fleet-status-chart-container">
+    <div
+      className="flex flex-col bg-white rounded-xl border border-gray-100 shadow-sm p-6"
+      id="fleet-status-chart-container"
+    >
       {/* Header */}
       <div className="mb-6">
         <h3 className="font-semibold text-xl text-gray-900">Fleet Status Distribution</h3>
@@ -92,26 +93,26 @@ const FleetStatusChart = ({ data, loading }) => {
 
       {/* Chart Container */}
       <div className="flex-1" id="fleet-chart-wrapper">
-        <ResponsiveContainer width="100%" height={300} id="fleet-responsive-container" key={chartKey}>
+        <ResponsiveContainer
+          width="100%"
+          height={300}
+          id="fleet-responsive-container"
+          key={chartKey}
+        >
           <PieChart id="fleet-status-pie-chart" key={`fleet-pie-${chartKey}`}>
-            <Tooltip 
-              content={<CustomTooltip />}
-              cursor={{ fill: 'transparent' }}
-            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
             <Legend
               layout="horizontal"
               verticalAlign="bottom"
               align="center"
-              wrapperStyle={{ 
+              wrapperStyle={{
                 paddingTop: '20px',
-                paddingBottom: '10px'
+                paddingBottom: '10px',
               }}
               iconType="circle"
               iconSize={10}
               formatter={(value) => (
-                <span className="text-sm text-gray-700 font-medium">
-                  {value}
-                </span>
+                <span className="text-sm text-gray-700 font-medium">{value}</span>
               )}
             />
             <Pie
@@ -133,8 +134,8 @@ const FleetStatusChart = ({ data, loading }) => {
               animationEasing="ease-out"
             >
               {chartData.map((entry, index) => (
-                <Cell 
-                  key={`fleet-cell-${index}`} 
+                <Cell
+                  key={`fleet-cell-${index}`}
                   fill={COLORS[entry.name] || '#8884d8'}
                   strokeWidth={2}
                   stroke="white"
@@ -155,7 +156,8 @@ const FleetStatusChart = ({ data, loading }) => {
           <div className="text-sm text-gray-600">
             <span className="font-semibold text-green-600">
               {chartData.find((d) => d.name === 'Active')?.percentage || 0}%
-            </span> active
+            </span>{' '}
+            active
           </div>
         </div>
       </div>

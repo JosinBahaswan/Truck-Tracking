@@ -15,12 +15,12 @@ const buildApiUrl = (endpoint) => {
     console.error('❌ TRACKING_CONFIG.BASE_URL is not configured');
     return '';
   }
-  
+
   let cleanBaseUrl = baseUrl;
   if (baseUrl.endsWith('/api') && endpoint.startsWith('/api')) {
     cleanBaseUrl = baseUrl.slice(0, -4);
   }
-  
+
   return `${cleanBaseUrl}${endpoint}`;
 };
 
@@ -33,7 +33,7 @@ const fetchWithTimeout = async (url, options = {}) => {
 
   try {
     const token = localStorage.getItem('authToken');
-    
+
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
@@ -54,7 +54,7 @@ const fetchWithTimeout = async (url, options = {}) => {
     return data;
   } catch (error) {
     clearTimeout(timeout);
-    
+
     if (error.name === 'AbortError') {
       throw new Error('Request timeout');
     }
@@ -65,23 +65,23 @@ const fetchWithTimeout = async (url, options = {}) => {
 /**
  * Get all temperature sensor data from all trucks
  * Uses live-tracking endpoint and extracts temperature-specific sensors
- * 
+ *
  * @returns {Promise<Object>} Temperature monitoring data
  */
 export const getTemperatureMonitoring = async () => {
   try {
     const url = buildApiUrl('/api/trucks/live-tracking');
     console.log('🌡️ Fetching temperature monitoring data from:', url);
-    
+
     const response = await fetchWithTimeout(url);
-    
+
     if (!response.success || !response.data?.trucks) {
       throw new Error('Invalid response format');
     }
 
     // Transform data to flat array of temperature sensors
     const temperatureData = [];
-    
+
     response.data.trucks.forEach((truck) => {
       // Check if truck has sensors
       if (!truck.sensors || !Array.isArray(truck.sensors)) return;
@@ -104,8 +104,10 @@ export const getTemperatureMonitoring = async () => {
       });
     });
 
-    console.log(`✅ Temperature data loaded: ${temperatureData.length} sensors from ${response.data.trucks.length} trucks`);
-    
+    console.log(
+      `✅ Temperature data loaded: ${temperatureData.length} sensors from ${response.data.trucks.length} trucks`
+    );
+
     return {
       success: true,
       data: temperatureData,
@@ -124,23 +126,23 @@ export const getTemperatureMonitoring = async () => {
 /**
  * Get all tire pressure sensor data from all trucks
  * Uses live-tracking endpoint and extracts tire pressure-specific data
- * 
+ *
  * @returns {Promise<Object>} Tire pressure monitoring data
  */
 export const getTirePressureMonitoring = async () => {
   try {
     const url = buildApiUrl('/api/trucks/live-tracking');
     console.log('🛞 Fetching tire pressure monitoring data from:', url);
-    
+
     const response = await fetchWithTimeout(url);
-    
+
     if (!response.success || !response.data?.trucks) {
       throw new Error('Invalid response format');
     }
 
     // Transform data to flat array of tire sensors
     const tireData = [];
-    
+
     response.data.trucks.forEach((truck) => {
       // Check if truck has sensors
       if (!truck.sensors || !Array.isArray(truck.sensors)) return;
@@ -150,15 +152,15 @@ export const getTirePressureMonitoring = async () => {
         // ⚠️ Backend sends pressure in PSI (not kPa despite field name)
         const pressure = sensor.tirepValue || 0;
         const temperature = sensor.tempValue || 0;
-        
+
         // Map exType to readable status
         let status = 'Normal';
         const exType = sensor.exType || '';
-        
+
         // ✅ NEW THRESHOLDS (Dec 2025 Update)
         // Temperature: Normal 60-84°C, Warning ≥85°C, Critical ≥100°C
         // Pressure: Normal 100-119 PSI, Critical Low <90 PSI, Critical High ≥120 PSI
-        
+
         if (exType.includes('4')) {
           status = 'Lost';
         } else if (exType.includes('5')) {
@@ -188,8 +190,10 @@ export const getTirePressureMonitoring = async () => {
       });
     });
 
-    console.log(`✅ Tire pressure data loaded: ${tireData.length} tires from ${response.data.trucks.length} trucks`);
-    
+    console.log(
+      `✅ Tire pressure data loaded: ${tireData.length} tires from ${response.data.trucks.length} trucks`
+    );
+
     return {
       success: true,
       data: tireData,
@@ -207,7 +211,7 @@ export const getTirePressureMonitoring = async () => {
 
 /**
  * Get specific truck's sensor data
- * 
+ *
  * @param {number} truckId - Truck ID
  * @returns {Promise<Object>} Truck sensor data
  */
@@ -219,9 +223,9 @@ export const getTruckSensors = async (truckId) => {
 
     const url = buildApiUrl(`/api/trucks/${truckId}/tracking`);
     console.log('🔍 Fetching truck sensors from:', url);
-    
+
     const response = await fetchWithTimeout(url);
-    
+
     if (!response.success) {
       throw new Error(response.message || 'Failed to fetch truck data');
     }

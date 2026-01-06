@@ -42,8 +42,10 @@ const TailwindHeader = ({ setSidebarOpen }) => {
   }, []);
 
   const displayName = user?.name || user?.username || 'John Doe';
-  const profilePhoto = user?.avatar 
-    ? (user.avatar.startsWith('http') ? user.avatar : `${BASE_URL}${user.avatar}`)
+  const profilePhoto = user?.avatar
+    ? user.avatar.startsWith('http')
+      ? user.avatar
+      : `${BASE_URL}${user.avatar}`
     : null;
   const initials = (displayName || 'JD')
     .split(' ')

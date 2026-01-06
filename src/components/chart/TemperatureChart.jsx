@@ -1,5 +1,13 @@
 import React from 'react';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import { Thermometer, TrendingUp } from 'lucide-react';
 
 const CustomTooltip = ({ active, payload }) => {
@@ -69,7 +77,12 @@ export default function TemperatureChart({ data, loading }) {
               </linearGradient>
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" strokeOpacity={0.5} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="#e5e7eb"
+              strokeOpacity={0.5}
+            />
 
             <XAxis
               dataKey="time"
@@ -87,7 +100,10 @@ export default function TemperatureChart({ data, loading }) {
               style={{ fontSize: '12px', fill: '#6b7280' }}
             />
 
-            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(239, 68, 68, 0.1)', strokeWidth: 2 }} />
+            <Tooltip
+              content={<CustomTooltip />}
+              cursor={{ stroke: 'rgba(239, 68, 68, 0.1)', strokeWidth: 2 }}
+            />
 
             <Area
               dataKey="average"

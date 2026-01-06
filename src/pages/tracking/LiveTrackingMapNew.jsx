@@ -48,10 +48,10 @@ const LiveTrackingMapNew = () => {
   const getCurrentShift = useCallback(() => {
     const now = new Date();
     const hour = now.getHours();
-    
+
     // Shift Siang: 06:00 - 16:00 (6 AM - 4 PM)
     // Shift Malam: 16:00 - 06:00 (4 PM - 6 AM next day)
-    
+
     if (hour >= 6 && hour < 16) {
       return 'day'; // Shift Siang
     } else {
@@ -63,13 +63,13 @@ const LiveTrackingMapNew = () => {
   const getCurrentShiftDate = useCallback(() => {
     const now = new Date();
     const shift = getCurrentShift();
-    
+
     // Untuk shift malam (16:00-06:00), jam 00:00-05:59 masih dianggap bagian dari hari sebelumnya
     let effectiveDate = new Date(now);
     if (shift === 'night' && now.getHours() < 6) {
       effectiveDate.setDate(effectiveDate.getDate() - 1);
     }
-    
+
     const dateStr = effectiveDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
     return `${dateStr}-${shift}`; // Format: "2025-12-23-day" atau "2025-12-23-night"
   }, [getCurrentShift]);
@@ -77,20 +77,22 @@ const LiveTrackingMapNew = () => {
   // Fungsi untuk cek apakah shift atau hari sudah berganti
   const checkShiftDateChange = useCallback(() => {
     const currentShiftDate = getCurrentShiftDate();
-    
+
     if (currentShiftDateRef.current === null) {
       // Inisialisasi pertama kali
       currentShiftDateRef.current = currentShiftDate;
       console.log(`📅 Initialized shift tracking: ${currentShiftDate}`);
       return false;
     }
-    
+
     if (currentShiftDateRef.current !== currentShiftDate) {
-      console.log(`🔄 Shift/Date changed from ${currentShiftDateRef.current} to ${currentShiftDate}`);
+      console.log(
+        `🔄 Shift/Date changed from ${currentShiftDateRef.current} to ${currentShiftDate}`
+      );
       currentShiftDateRef.current = currentShiftDate;
       return true; // Ada perubahan shift/hari
     }
-    
+
     return false; // Tidak ada perubahan
   }, [getCurrentShiftDate]);
 
@@ -157,42 +159,42 @@ const LiveTrackingMapNew = () => {
     try {
       setLoading(true);
       console.log('🔄 Loading live vehicles from Tracking API...');
-      
+
       const response = await trackingAPI.getLiveTracking();
       console.log('📡 Tracking API response:', response);
-      
+
       if (response && response.success && Array.isArray(response.data?.trucks)) {
         const trucks = response.data.trucks;
-        
+
         const items = trucks
           .map((truck) => {
             // Extract truck data from API response
             const id = truck.truck_id ? String(truck.truck_id) : null;
             const location = truck.location;
-            
+
             // Validate location data
             if (!location || !location.latitude || !location.longitude) {
               console.warn(`⚠️ No location data for truck ${id}`);
               return null;
             }
-            
+
             const lat = parseFloat(location.latitude);
             const lng = parseFloat(location.longitude);
-            
+
             // Validate coordinates are within reasonable bounds
             const isValidLat = isFinite(lat) && lat >= -90 && lat <= 90;
             const isValidLng = isFinite(lng) && lng >= -180 && lng <= 180;
-            
+
             if (!id || !isValidLat || !isValidLng) {
               console.warn(`⚠️ Invalid coordinates for truck ${id}: lat=${lat}, lng=${lng}`);
               return null;
             }
-            
+
             console.log(`📍 Truck ${id} (${truck.plate_number}) position: [${lat}, ${lng}]`);
-            
+
             // Calculate average battery from device
             const battery = truck.device?.battery?.average || 0;
-            
+
             // Map sensors to tireData format
             const tireData = (truck.sensors || []).map((sensor) => ({
               tireNo: sensor.tireNo,
@@ -202,14 +204,14 @@ const LiveTrackingMapNew = () => {
               exType: sensor.exType,
               bat: sensor.bat,
             }));
-            
+
             console.log(`🔧 Truck ${id} tire data:`, {
               sensorCount: truck.sensors?.length || 0,
               tireDataCount: tireData.length,
               summary: truck.sensor_summary,
-              sampleData: tireData.slice(0, 2) // Log first 2 sensors as sample
+              sampleData: tireData.slice(0, 2), // Log first 2 sensors as sample
             });
-            
+
             return {
               id,
               truckNumber: truck.truck_id,
@@ -232,14 +234,14 @@ const LiveTrackingMapNew = () => {
             };
           })
           .filter(Boolean);
-        
+
         console.log(`✅ Loaded ${items.length} trucks from Tracking API`);
         setVehicles(items);
         setBackendOnline(true);
-        
+
         // Cek apakah shift atau hari sudah berganti
         const shiftChanged = checkShiftDateChange();
-        
+
         // Update vehicle routes with current positions
         setVehicleRoutes((prevRoutes) => {
           // Jika shift/hari berganti, reset semua rute
@@ -253,18 +255,19 @@ const LiveTrackingMapNew = () => {
             });
             return newRoutes;
           }
-          
+
           // Jika masih di shift/hari yang sama, update rute seperti biasa
           const newRoutes = { ...prevRoutes };
           items.forEach((vehicle) => {
             const existingRoute = prevRoutes[vehicle.id] || [];
             const lastPos = existingRoute[existingRoute.length - 1];
-            
+
             // Only add new position if it's different from the last one
-            const isSamePosition = lastPos && 
+            const isSamePosition =
+              lastPos &&
               Math.abs(lastPos[0] - vehicle.position[0]) < 0.00001 &&
               Math.abs(lastPos[1] - vehicle.position[1]) < 0.00001;
-            
+
             if (!isSamePosition) {
               // Add new position to route - FULL route for current shift (no limit)
               newRoutes[vehicle.id] = [...existingRoute, vehicle.position];
@@ -273,42 +276,44 @@ const LiveTrackingMapNew = () => {
               newRoutes[vehicle.id] = existingRoute;
             }
           });
-          
+
           // Remove routes for vehicles no longer in current data (cleanup stale data)
-          Object.keys(prevRoutes).forEach(vehicleId => {
-            if (!items.find(v => v.id === vehicleId)) {
+          Object.keys(prevRoutes).forEach((vehicleId) => {
+            if (!items.find((v) => v.id === vehicleId)) {
               delete newRoutes[vehicleId];
             }
           });
-          
+
           return newRoutes;
         });
-        
+
         // 🔍 DETECT DEVICE REASSIGNMENT and clear old routes
         setVehicleDevices((prevDevices) => {
           const newDevices = {};
-          
+
           items.forEach((vehicle) => {
             const currentDeviceId = vehicle.device?.id;
             const previousDeviceId = prevDevices[vehicle.id];
-            
+
             if (currentDeviceId) {
               // Check if device changed for this truck
               if (previousDeviceId && previousDeviceId !== currentDeviceId) {
-                console.log(`🔄 DEVICE CHANGED for truck ${vehicle.id}: ${previousDeviceId} → ${currentDeviceId}`);
+                console.log(
+                  `🔄 DEVICE CHANGED for truck ${vehicle.id}: ${previousDeviceId} → ${currentDeviceId}`
+                );
                 console.log(`🧹 Clearing old route to prevent route mixing...`);
-                
+
                 // Clear route for this truck since device changed
-                setVehicleRoutes(prev => ({
+                setVehicleRoutes((prev) => ({
                   ...prev,
-                  [vehicle.id]: [vehicle.position] // Start fresh with current position only
+                  [vehicle.id]: [vehicle.position], // Start fresh with current position only
                 }));
               }
-              
+
               newDevices[vehicle.id] = currentDeviceId;
             }
           });
-          
+
           return newDevices;
         });
       } else {
@@ -351,7 +356,11 @@ const LiveTrackingMapNew = () => {
     }
 
     try {
-      console.log('🔌 Connecting to WebSocket:', WS_URL, `(attempt ${wsReconnectAttempts.current + 1})`);
+      console.log(
+        '🔌 Connecting to WebSocket:',
+        WS_URL,
+        `(attempt ${wsReconnectAttempts.current + 1})`
+      );
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
       setWsStatus('connecting');
@@ -360,13 +369,15 @@ const LiveTrackingMapNew = () => {
         console.log('✅ WebSocket connected successfully');
         setWsStatus('connected');
         wsReconnectAttempts.current = 0; // Reset counter on success
-        
+
         // Subscribe to truck updates channel
         try {
-          ws.send(JSON.stringify({
-            type: 'subscribe',
-            channel: 'truck_updates'
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'subscribe',
+              channel: 'truck_updates',
+            })
+          );
           wsSubscribedRef.current = true;
           console.log('📡 Subscribed to truck_updates channel');
         } catch (e) {
@@ -377,7 +388,7 @@ const LiveTrackingMapNew = () => {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          
+
           // Handle different message types
           if (message.type === 'connection_accepted') {
             console.log('✅ Connection accepted:', message.clientId);
@@ -406,17 +417,19 @@ const LiveTrackingMapNew = () => {
         setWsStatus('disconnected');
         wsSubscribedRef.current = false;
         wsRef.current = null;
-        
+
         // Only reconnect if not a normal closure and not exceeded max attempts
         const MAX_RECONNECT_ATTEMPTS = 3; // Reduced from 10 to 3
         if (event.code !== 1000 && wsReconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
           wsReconnectAttempts.current++;
-          
+
           // Exponential backoff: 3s, 6s, 12s
           const delay = Math.min(3000 * Math.pow(2, wsReconnectAttempts.current - 1), 12000);
-          
-          console.log(`🔄 Will reconnect in ${delay/1000}s (attempt ${wsReconnectAttempts.current}/${MAX_RECONNECT_ATTEMPTS})`);
-          
+
+          console.log(
+            `🔄 Will reconnect in ${delay / 1000}s (attempt ${wsReconnectAttempts.current}/${MAX_RECONNECT_ATTEMPTS})`
+          );
+
           wsReconnectTimeout.current = setTimeout(() => {
             console.log('🔄 Attempting to reconnect WebSocket...');
             connectWebSocket();
@@ -431,158 +444,164 @@ const LiveTrackingMapNew = () => {
       console.error('❌ Failed to create WebSocket connection:', error);
       setWsStatus('error');
     }
-  }, );
+  }, [handleTruckLocationUpdate]);
 
   // Handle real-time truck location update from WebSocket
-  const handleTruckLocationUpdate = useCallback((data) => {
-    const timestamp = new Date().toLocaleTimeString();
-    console.log(`🔥 [${timestamp}] WebSocket UPDATE received:`, data);
-    
-    const truck = data;
-    const id = truck.truckId ? String(truck.truckId) : null;
-    const location = truck.location;
-    
-    // Validate location data
-    if (!location || !location.lat || !location.long) {
-      console.warn(`⚠️ Invalid location data for truck ${id}`);
-      return;
-    }
-    
-    const lat = parseFloat(location.lat);
-    const lng = parseFloat(location.long);
-    
-    // Validate coordinates
-    const isValidLat = isFinite(lat) && lat >= -90 && lat <= 90;
-    const isValidLng = isFinite(lng) && lng >= -180 && lng <= 180;
-    
-    if (!id || !isValidLat || !isValidLng) {
-      console.warn(`⚠️ Invalid coordinates for truck ${id}`);
-      return;
-    }
-    
-    // Calculate average battery from device
-    const battery = truck.device?.bat1 || truck.device?.bat2 || truck.device?.bat3 || 0;
-    
-    // Map sensors to tireData format
-    const tireData = (truck.sensors || []).map((sensor) => ({
-      tireNo: sensor.tireNo,
-      sensorNo: sensor.sensorNo,
-      tempValue: sensor.tempValue,
-      tirepValue: sensor.tirepValue,
-      exType: sensor.exType,
-      bat: sensor.bat,
-    }));
-    
-    const vehicleData = {
-      id,
-      truckNumber: truck.truckId,
-      truckName: truck.plate,
-      plateNumber: truck.plate,
-      model: '',
-      type: '',
-      position: [lat, lng],
-      status: 'active',
-      speed: 0,
-      heading: 0,
-      fuel: 0,
-      battery: battery,
-      signal: 'good',
-      lastUpdate: new Date(location.recorded_at || Date.now()),
-      tireData: tireData,
-      driver: null,
-      device: truck.device,
-      sensorSummary: null,
-    };
-    
-    // Update vehicles state
-    setVehicles(prev => {
-      const existingIndex = prev.findIndex(v => v.id === id);
-      if (existingIndex >= 0) {
-        // Update existing vehicle
-        const updated = [...prev];
-        console.log(`✅ Vehicle ${id} updated via WebSocket at [${lat}, ${lng}]`);
-        return updated;
-      } else {
-        // Add new vehicle
-        console.log(`✅ New vehicle ${id} added via WebSocket at [${lat}, ${lng}]`);
-        // Add new vehicle
-        return [...prev, vehicleData];
+  const handleTruckLocationUpdate = useCallback(
+    (data) => {
+      const timestamp = new Date().toLocaleTimeString();
+      console.log(`🔥 [${timestamp}] WebSocket UPDATE received:`, data);
+
+      const truck = data;
+      const id = truck.truckId ? String(truck.truckId) : null;
+      const location = truck.location;
+
+      // Validate location data
+      if (!location || !location.lat || !location.long) {
+        console.warn(`⚠️ Invalid location data for truck ${id}`);
+        return;
       }
-    });
-    
-    // Cek apakah shift atau hari sudah berganti
-    const shiftChanged = checkShiftDateChange();
-    
-    // 🔍 Check if device changed for this truck (device reassignment detection)
-    setVehicleDevices((prevDevices) => {
-      const currentDeviceId = truck.device?.id;
-      const previousDeviceId = prevDevices[id];
-      
-      if (currentDeviceId && previousDeviceId && previousDeviceId !== currentDeviceId) {
-        console.log(`🔄 DEVICE CHANGED via WebSocket for truck ${id}: ${previousDeviceId} → ${currentDeviceId}`);
-        console.log(`🧹 Clearing old route to prevent mixing...`);
-        
-        // Clear route immediately
-        setVehicleRoutes(prev => ({
-          ...prev,
-          [id]: [vehicleData.position] // Fresh start with current position only
-        }));
-        
-        return {
-          ...prevDevices,
-          [id]: currentDeviceId
-        };
+
+      const lat = parseFloat(location.lat);
+      const lng = parseFloat(location.long);
+
+      // Validate coordinates
+      const isValidLat = isFinite(lat) && lat >= -90 && lat <= 90;
+      const isValidLng = isFinite(lng) && lng >= -180 && lng <= 180;
+
+      if (!id || !isValidLat || !isValidLng) {
+        console.warn(`⚠️ Invalid coordinates for truck ${id}`);
+        return;
       }
-      
-      if (currentDeviceId) {
-        return {
-          ...prevDevices,
-          [id]: currentDeviceId
-        };
-      }
-      
-      return prevDevices;
-    });
-    
-    // Update vehicle routes
-    setVehicleRoutes(prevRoutes => {
-      if (shiftChanged) {
-        // Reset all routes on shift change
-        console.log('🔄 Shift/Date changed - resetting route for truck', id);
-        return {
-          ...prevRoutes,
-          [id]: [vehicleData.position]
-        };
-      }
-      
-      const existingRoute = prevRoutes[id] || [];
-      const lastPos = existingRoute[existingRoute.length - 1];
-      
-      // Only add if position changed
-      const isSamePosition = lastPos && 
-        Math.abs(lastPos[0] - vehicleData.position[0]) < 0.00001 &&
-        Math.abs(lastPos[1] - vehicleData.position[1]) < 0.00001;
-      
-      if (!isSamePosition) {
-        return {
-          ...prevRoutes,
-          [id]: [...existingRoute, vehicleData.position]
-        };
-      }
-      
-      return prevRoutes;
-    });
-    
-    // Update selectedVehicle if it's the same truck
-    setSelectedVehicle(prev => {
-      if (prev && prev.id === id) {
-        return vehicleData;
-      }
-      return prev;
-    });
-    
-    setBackendOnline(true);
-  }, [checkShiftDateChange]);
+
+      // Calculate average battery from device
+      const battery = truck.device?.bat1 || truck.device?.bat2 || truck.device?.bat3 || 0;
+
+      // Map sensors to tireData format
+      const tireData = (truck.sensors || []).map((sensor) => ({
+        tireNo: sensor.tireNo,
+        sensorNo: sensor.sensorNo,
+        tempValue: sensor.tempValue,
+        tirepValue: sensor.tirepValue,
+        exType: sensor.exType,
+        bat: sensor.bat,
+      }));
+
+      const vehicleData = {
+        id,
+        truckNumber: truck.truckId,
+        truckName: truck.plate,
+        plateNumber: truck.plate,
+        model: '',
+        type: '',
+        position: [lat, lng],
+        status: 'active',
+        speed: 0,
+        heading: 0,
+        fuel: 0,
+        battery: battery,
+        signal: 'good',
+        lastUpdate: new Date(location.recorded_at || Date.now()),
+        tireData: tireData,
+        driver: null,
+        device: truck.device,
+        sensorSummary: null,
+      };
+
+      // Update vehicles state
+      setVehicles((prev) => {
+        const existingIndex = prev.findIndex((v) => v.id === id);
+        if (existingIndex >= 0) {
+          // Update existing vehicle
+          const updated = [...prev];
+          console.log(`✅ Vehicle ${id} updated via WebSocket at [${lat}, ${lng}]`);
+          return updated;
+        } else {
+          // Add new vehicle
+          console.log(`✅ New vehicle ${id} added via WebSocket at [${lat}, ${lng}]`);
+          // Add new vehicle
+          return [...prev, vehicleData];
+        }
+      });
+
+      // Cek apakah shift atau hari sudah berganti
+      const shiftChanged = checkShiftDateChange();
+
+      // 🔍 Check if device changed for this truck (device reassignment detection)
+      setVehicleDevices((prevDevices) => {
+        const currentDeviceId = truck.device?.id;
+        const previousDeviceId = prevDevices[id];
+
+        if (currentDeviceId && previousDeviceId && previousDeviceId !== currentDeviceId) {
+          console.log(
+            `🔄 DEVICE CHANGED via WebSocket for truck ${id}: ${previousDeviceId} → ${currentDeviceId}`
+          );
+          console.log(`🧹 Clearing old route to prevent mixing...`);
+
+          // Clear route immediately
+          setVehicleRoutes((prev) => ({
+            ...prev,
+            [id]: [vehicleData.position], // Fresh start with current position only
+          }));
+
+          return {
+            ...prevDevices,
+            [id]: currentDeviceId,
+          };
+        }
+
+        if (currentDeviceId) {
+          return {
+            ...prevDevices,
+            [id]: currentDeviceId,
+          };
+        }
+
+        return prevDevices;
+      });
+
+      // Update vehicle routes
+      setVehicleRoutes((prevRoutes) => {
+        if (shiftChanged) {
+          // Reset all routes on shift change
+          console.log('🔄 Shift/Date changed - resetting route for truck', id);
+          return {
+            ...prevRoutes,
+            [id]: [vehicleData.position],
+          };
+        }
+
+        const existingRoute = prevRoutes[id] || [];
+        const lastPos = existingRoute[existingRoute.length - 1];
+
+        // Only add if position changed
+        const isSamePosition =
+          lastPos &&
+          Math.abs(lastPos[0] - vehicleData.position[0]) < 0.00001 &&
+          Math.abs(lastPos[1] - vehicleData.position[1]) < 0.00001;
+
+        if (!isSamePosition) {
+          return {
+            ...prevRoutes,
+            [id]: [...existingRoute, vehicleData.position],
+          };
+        }
+
+        return prevRoutes;
+      });
+
+      // Update selectedVehicle if it's the same truck
+      setSelectedVehicle((prev) => {
+        if (prev && prev.id === id) {
+          return vehicleData;
+        }
+        return prev;
+      });
+
+      setBackendOnline(true);
+    },
+    [checkShiftDateChange]
+  );
 
   // Handler saat peta siap digunakan
   const onMapReady = (mapInstance, utils) => {
@@ -617,13 +636,13 @@ const LiveTrackingMapNew = () => {
   useEffect(() => {
     console.log('🚀 Initializing WebSocket for real-time tracking...');
     console.log('🔄 Fallback polling enabled (3s interval) for reliability');
-    
+
     // Reset reconnection counter on mount
     wsReconnectAttempts.current = 0;
-    
+
     // Connect WebSocket for real-time updates (best case)
     connectWebSocket();
-    
+
     // Fallback polling - ensures app works even if WebSocket fails
     // This will provide updates every 3 seconds via REST API
     const fallbackInterval = setInterval(() => {
@@ -632,7 +651,7 @@ const LiveTrackingMapNew = () => {
       }
       loadVehiclesFromBackend();
     }, 3000); // Poll every 3 seconds
-    
+
     // Keep-alive ping every 30 seconds
     const pingInterval = setInterval(() => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -643,18 +662,18 @@ const LiveTrackingMapNew = () => {
         }
       }
     }, 30000);
-    
+
     return () => {
       console.log('🗑️ Cleaning up WebSocket connection');
       clearInterval(fallbackInterval);
       clearInterval(pingInterval);
-      
+
       // Clear any pending reconnection timeout
       if (wsReconnectTimeout.current) {
         clearTimeout(wsReconnectTimeout.current);
         wsReconnectTimeout.current = null;
       }
-      
+
       // Close WebSocket on unmount
       if (wsRef.current) {
         try {
@@ -665,7 +684,7 @@ const LiveTrackingMapNew = () => {
         }
         wsRef.current = null;
       }
-      
+
       wsSubscribedRef.current = false;
       wsReconnectAttempts.current = 0;
     };
@@ -677,7 +696,9 @@ const LiveTrackingMapNew = () => {
     const checkInterval = setInterval(() => {
       const shiftChanged = checkShiftDateChange();
       if (shiftChanged) {
-        console.log('⏰ Shift/Date changed detected - clearing routes, device tracking, and reloading data');
+        console.log(
+          '⏰ Shift/Date changed detected - clearing routes, device tracking, and reloading data'
+        );
         // Clear all routes and device tracking
         setVehicleRoutes({});
         setVehicleDevices({}); // Force redetection of devices
@@ -699,7 +720,7 @@ const LiveTrackingMapNew = () => {
     const currentShift = getCurrentShiftDate();
     currentShiftDateRef.current = currentShift;
     console.log(`📅 Current shift: ${currentShift}`);
-    
+
     // Clear ALL old routes from previous sessions/shifts - only show today's shift routes
     console.log('🧹 Clearing all old routes - starting fresh for current shift');
     setVehicleRoutes({});
@@ -709,8 +730,8 @@ const LiveTrackingMapNew = () => {
   useEffect(() => {
     if (selectedVehicle && showVehicleCard && vehicles.length > 0) {
       // Find updated vehicle data from vehicles array
-      const updatedVehicle = vehicles.find(v => v.id === selectedVehicle.id);
-      
+      const updatedVehicle = vehicles.find((v) => v.id === selectedVehicle.id);
+
       if (updatedVehicle) {
         // Update selectedVehicle with fresh data (position, tireData, etc.)
         setSelectedVehicle(updatedVehicle);
@@ -734,24 +755,26 @@ const LiveTrackingMapNew = () => {
   useEffect(() => {
     if (selectedVehicle && vehicles.length > 0) {
       // Find the updated vehicle data from the vehicles array
-      const updatedVehicle = vehicles.find(v => v.id === selectedVehicle.id);
-      
+      const updatedVehicle = vehicles.find((v) => v.id === selectedVehicle.id);
+
       if (updatedVehicle) {
         // Check if tire data actually changed
         const oldTireData = JSON.stringify(selectedVehicle.tireData || []);
         const newTireData = JSON.stringify(updatedVehicle.tireData || []);
-        
+
         if (oldTireData !== newTireData) {
           console.log(`🔄 Tire data updated for ${updatedVehicle.id}:`, {
             oldCount: selectedVehicle.tireData?.length || 0,
             newCount: updatedVehicle.tireData?.length || 0,
-            newData: updatedVehicle.tireData
+            newData: updatedVehicle.tireData,
           });
         }
-        
+
         // Update selectedVehicle with fresh data (including tireData, position, etc.)
         setSelectedVehicle(updatedVehicle);
-        console.log(`🔄 Updated selectedVehicle data for ${updatedVehicle.id} at ${new Date().toLocaleTimeString()}`);
+        console.log(
+          `🔄 Updated selectedVehicle data for ${updatedVehicle.id} at ${new Date().toLocaleTimeString()}`
+        );
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -842,7 +865,7 @@ const LiveTrackingMapNew = () => {
       const seen = new Set(); // Set untuk tracking marker yang masih digunakan
 
       // Filter vehicles berdasarkan cluster selection untuk mendapatkan nomor urut yang benar
-      const filteredVehicles = vehicles.filter(vehicle => inSelectedCluster(vehicle.id));
+      const filteredVehicles = vehicles.filter((vehicle) => inSelectedCluster(vehicle.id));
 
       filteredVehicles.forEach((vehicle, visualIndex) => {
         // Loop setiap kendaraan dengan index urut visual
@@ -855,27 +878,26 @@ const LiveTrackingMapNew = () => {
         };
 
         const truckNum = vehicle.truckNumber || extractTruckNumber(vehicle.id) || ''; // Ekstrak nomor truk dari database (fixed number)
-        const visualNum = visualIndex + 1; // Nomor urut visual (#1, #2, #3, dst)
-        
+        const visualNum = visualIndex + 1; // Nomor urut visual (#1, #2, #3, dst) - hanya untuk card info
+
         // Simpan visualNum ke vehicle object untuk digunakan di card info
         vehicle._visualNumber = visualNum;
-        
+
         const buildIcon = (
           status // Fungsi untuk build custom icon
         ) =>
           L.divIcon({
             html: ` 
             <div style="position: relative;">
-              <div style="background: ${colors[status] || colors.offline}; color: #ffffff; border: 2px solid #ffffff; border-radius: 6px; padding: 2px 6px; min-width: 32px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); line-height: 1;">
-                <span style="font-size: 9px; opacity: 0.8; margin-right: 2px;">#${visualNum}</span>
-                <span style="font-size: 11px;">${truckNum}</span>
+              <div style="background: ${colors[status] || colors.offline}; color: #ffffff; border: 2px solid #ffffff; border-radius: 6px; padding: 2px 6px; min-width: 26px; height: 20px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
+                ${truckNum}
               </div>
               <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid ${colors[status] || colors.offline}; margin: 0 auto; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));"></div>
             </div>
-          `, // HTML untuk icon dengan nomor urut visual dan nomor truk tetap
+          `, // HTML untuk icon dengan nomor truk tetap dari database (sesuai filter cluster)
             className: 'custom-truck-icon', // Class CSS
-            iconSize: [36, 32], // Ukuran icon sedikit lebih besar untuk menampung 2 nomor
-            iconAnchor: [18, 32], // Anchor point (bottom center)
+            iconSize: [28, 28], // Ukuran icon standard
+            iconAnchor: [14, 28], // Anchor point (bottom center)
           });
 
         let marker = existing[vehicle.id]; // Cek apakah marker sudah ada
@@ -898,7 +920,7 @@ const LiveTrackingMapNew = () => {
           // Add click handler only once when creating marker
           marker.on('click', async () => {
             // Event handler saat marker diklik
-            
+
             // ALWAYS clear previous route lines and markers to prevent stacking
             try {
               if (liveRouteLineRef.current && map) {
@@ -912,7 +934,7 @@ const LiveTrackingMapNew = () => {
             } catch (err) {
               console.warn('Error clearing route:', err);
             }
-            
+
             setSelectedVehicle(vehicle); // Set kendaraan yang dipilih
             setShowVehicleCard(true); // Tampilkan card info kendaraan
 
@@ -922,32 +944,33 @@ const LiveTrackingMapNew = () => {
 
             // Show live route for this vehicle
             try {
-
               const L = window.L || require('leaflet'); // eslint-disable-line no-undef
               // Ambil library Leaflet
 
               let routeHistory = vehicleRoutes[vehicle.id] || []; // Ambil history rute dari state
-              
+
               // 🔍 CRITICAL FIX: Check if current device matches the one we're tracking
               // If device changed (reassignment), clear old route and reload from backend
               const currentDeviceId = vehicle.device?.id;
               const trackedDeviceId = vehicleDevices[vehicle.id];
-              
+
               if (currentDeviceId && trackedDeviceId && currentDeviceId !== trackedDeviceId) {
-                console.log(`🔄 Device mismatch detected! Tracked: ${trackedDeviceId}, Current: ${currentDeviceId}`);
+                console.log(
+                  `🔄 Device mismatch detected! Tracked: ${trackedDeviceId}, Current: ${currentDeviceId}`
+                );
                 console.log(`🧹 Clearing old route and reloading from backend...`);
                 routeHistory = []; // Force clear route history
-                
+
                 // Update tracked device
-                setVehicleDevices(prev => ({
+                setVehicleDevices((prev) => ({
                   ...prev,
-                  [vehicle.id]: currentDeviceId
+                  [vehicle.id]: currentDeviceId,
                 }));
               } else if (currentDeviceId && !trackedDeviceId) {
                 // First time seeing this device for this truck, record it
-                setVehicleDevices(prev => ({
+                setVehicleDevices((prev) => ({
                   ...prev,
-                  [vehicle.id]: currentDeviceId
+                  [vehicle.id]: currentDeviceId,
                 }));
               }
 
@@ -956,16 +979,18 @@ const LiveTrackingMapNew = () => {
                 try {
                   // Get current shift date untuk filter
                   const currentShiftDate = getCurrentShiftDate();
-                  console.log(`📅 Loading route for ${vehicle.id} from current shift: ${currentShiftDate}`);
-                  
+                  console.log(
+                    `📅 Loading route for ${vehicle.id} from current shift: ${currentShiftDate}`
+                  );
+
                   // Load route history from backend for TODAY's shift only
                   const histRes = await trackingAPI.getTruckTracking(vehicle.id, 1000); // Load banyak untuk full route
-                  
+
                   if (histRes.success && histRes.data?.location_history) {
                     // Filter location history untuk shift/tanggal saat ini
                     const now = new Date();
                     const shiftStartTime = new Date();
-                    
+
                     // Tentukan waktu mulai shift saat ini
                     const currentShift = getCurrentShift();
                     if (currentShift === 'day') {
@@ -982,12 +1007,12 @@ const LiveTrackingMapNew = () => {
                         shiftStartTime.setHours(16, 0, 0, 0);
                       }
                     }
-                    
+
                     console.log(`🕒 Filtering routes from: ${shiftStartTime.toISOString()}`);
-                    
+
                     // Sort by timestamp ascending (oldest first), then map coordinates
                     const sortedHistory = histRes.data.location_history
-                      .filter(loc => {
+                      .filter((loc) => {
                         // Filter hanya data dari shift saat ini
                         const locTime = new Date(loc.recorded_at || loc.created_at);
                         return locTime >= shiftStartTime;
@@ -998,7 +1023,7 @@ const LiveTrackingMapNew = () => {
                         const timeB = new Date(b.recorded_at || b.created_at).getTime();
                         return timeA - timeB;
                       });
-                    
+
                     // Map sorted history to coordinates
                     const coords = sortedHistory
                       .map((loc) => {
@@ -1007,17 +1032,19 @@ const LiveTrackingMapNew = () => {
                         return isFinite(lat) && isFinite(lng) ? [lat, lng] : null;
                       })
                       .filter(Boolean); // Filter out nilai null
-                      
+
                     if (coords.length > 0) {
                       console.log(`✅ Loaded ${coords.length} route points from current shift`);
                       routeHistory = coords;
                       // Update vehicleRoutes state dengan data dari backend
-                      setVehicleRoutes(prev => ({
+                      setVehicleRoutes((prev) => ({
                         ...prev,
-                        [vehicle.id]: coords
+                        [vehicle.id]: coords,
                       }));
                     } else {
-                      console.log('⚠️ No route data found for current shift, using current position');
+                      console.log(
+                        '⚠️ No route data found for current shift, using current position'
+                      );
                       routeHistory = [vehicle.position]; // Gunakan posisi saat ini
                     }
                   }
@@ -1030,7 +1057,7 @@ const LiveTrackingMapNew = () => {
 
               if (Array.isArray(routeHistory) && routeHistory.length > 1) {
                 // Jika ada rute dengan minimal 2 point
-                
+
                 // IMPORTANT: Remove old polyline before creating new one (prevent stacking)
                 if (liveRouteLineRef.current) {
                   try {
@@ -1040,7 +1067,7 @@ const LiveTrackingMapNew = () => {
                     console.warn('Error removing old polyline:', err);
                   }
                 }
-                
+
                 const routeColor = '#2563eb'; // Warna biru untuk rute
                 liveRouteLineRef.current = L.polyline(routeHistory, {
                   // Buat polyline untuk rute
@@ -1077,7 +1104,7 @@ const LiveTrackingMapNew = () => {
                   pane: 'markerPane', // Use markerPane for higher z-index
                   zIndexOffset: 1000, // Ensure it appears above route line
                 }).addTo(map);
-                
+
                 // Note: END marker removed - current position shown by truck icon with number
 
                 try {
@@ -1138,23 +1165,34 @@ const LiveTrackingMapNew = () => {
         }
       });
     }
-  }, [map, vehicles, clusterSelections, inSelectedCluster, vehicleRoutes, timeRange, selectedVehicle]); // Re-run jika dependencies berubah
+    // Note: getCurrentShift, getCurrentShiftDate, vehicleDevices excluded to avoid infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    map,
+    vehicles,
+    clusterSelections,
+    inSelectedCluster,
+    vehicleRoutes,
+    timeRange,
+    selectedVehicle,
+  ]); // Re-run jika dependencies berubah
 
   // Re-apply marker zoom styling whenever map or selection changes
   useEffect(() => {
     applyMarkerZoomStyling(); // Terapkan styling marker
+    // Note: getCurrentShift, getCurrentShiftDate, vehicleDevices excluded to avoid infinite loops
   }, [map, vehicles, clusterSelections, applyMarkerZoomStyling]); // Re-run jika dependencies berubah
 
   // Update live route line when vehicleRoutes changes for selected vehicle (smooth update)
   useEffect(() => {
     if (!map || !selectedVehicle || !showVehicleCard) return; // Only update if vehicle card is shown
-    
+
     let routeHistory = vehicleRoutes[selectedVehicle.id];
     if (!routeHistory || routeHistory.length === 0) return; // Need at least 1 point
-    
+
     try {
       const L = window.L || require('leaflet'); // eslint-disable-line no-undef
-      
+
       // 🔥 CRITICAL FIX: Filter out any stale route points that are too far from current position
       // This prevents the long blue line issue when old data gets mixed
       const currentMarker = markersRef.current[selectedVehicle.id];
@@ -1162,43 +1200,48 @@ const LiveTrackingMapNew = () => {
         console.warn(`⚠️ No marker found for ${selectedVehicle.id}`);
         return;
       }
-      
+
       const markerPos = currentMarker.getLatLng();
       const currentPosition = [markerPos.lat, markerPos.lng];
-      
+
       // Filter route points: only keep points within reasonable distance (e.g., 50km from current position)
       // This removes any stale data from old device assignment
       const MAX_DISTANCE_KM = 50;
       const filteredRoute = routeHistory.filter((point, idx) => {
         // Always keep first and last point
         if (idx === 0 || idx === routeHistory.length - 1) return true;
-        
+
         // Calculate distance from current position
         const R = 6371; // Earth radius in km
-        const dLat = (point[0] - currentPosition[0]) * Math.PI / 180;
-        const dLon = (point[1] - currentPosition[1]) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(currentPosition[0] * Math.PI / 180) * Math.cos(point[0] * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const dLat = ((point[0] - currentPosition[0]) * Math.PI) / 180;
+        const dLon = ((point[1] - currentPosition[1]) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((currentPosition[0] * Math.PI) / 180) *
+            Math.cos((point[0] * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = R * c;
-        
+
         return distance <= MAX_DISTANCE_KM;
       });
-      
+
       // If too many points filtered out, clear the entire route (likely stale data)
       if (filteredRoute.length < routeHistory.length * 0.5 && routeHistory.length > 10) {
-        console.warn(`🧹 Filtered out ${routeHistory.length - filteredRoute.length} stale route points for ${selectedVehicle.id}`);
+        console.warn(
+          `🧹 Filtered out ${routeHistory.length - filteredRoute.length} stale route points for ${selectedVehicle.id}`
+        );
         // Clear stale route from state
-        setVehicleRoutes(prev => ({
+        setVehicleRoutes((prev) => ({
           ...prev,
-          [selectedVehicle.id]: [currentPosition]
+          [selectedVehicle.id]: [currentPosition],
         }));
         return;
       }
-      
+
       routeHistory = filteredRoute;
-      
+
       // Build final route: all history points except last + current marker position
       // This guarantees the line ends exactly at the marker
       let finalRoute;
@@ -1209,21 +1252,25 @@ const LiveTrackingMapNew = () => {
         // Multiple points: keep all except last, then add current marker position
         finalRoute = [...routeHistory.slice(0, -1), currentPosition];
       }
-      
+
       if (finalRoute.length < 2) {
         // Need at least 2 points to draw a line
         return;
       }
-      
+
       // Update or recreate polyline with final route points
       if (liveRouteLineRef.current && map.hasLayer(liveRouteLineRef.current)) {
         // Polyline exists and is on map - just update coordinates
         liveRouteLineRef.current.setLatLngs(finalRoute);
-        console.log(`📍 Updated route line for ${selectedVehicle.id}: ${finalRoute.length} points (ending at marker)`);
+        console.log(
+          `📍 Updated route line for ${selectedVehicle.id}: ${finalRoute.length} points (ending at marker)`
+        );
       } else {
         // Polyline missing or removed - recreate it
-        console.log(`🔄 Recreating route line for ${selectedVehicle.id}: ${finalRoute.length} points`);
-        
+        console.log(
+          `🔄 Recreating route line for ${selectedVehicle.id}: ${finalRoute.length} points`
+        );
+
         const routeColor = '#2563eb'; // Blue color
         liveRouteLineRef.current = L.polyline(finalRoute, {
           color: routeColor,
@@ -1235,14 +1282,16 @@ const LiveTrackingMapNew = () => {
           pane: 'routesPane',
         }).addTo(map);
       }
-      
+
       // Update START marker position if it exists (no recreation to avoid duplicates)
       if (liveRouteMarkersRef.current.start && map.hasLayer(liveRouteMarkersRef.current.start)) {
         const startPoint = finalRoute[0]; // Oldest point (first in sorted array)
         liveRouteMarkersRef.current.start.setLatLng(startPoint);
-        console.log(`📍 Updated START marker to oldest point: [${startPoint[0]}, ${startPoint[1]}]`);
+        console.log(
+          `📍 Updated START marker to oldest point: [${startPoint[0]}, ${startPoint[1]}]`
+        );
       }
-      
+
       // Note: No END marker - removed as per requirement
       // Current position is shown by the truck icon with number
     } catch (e) {
@@ -1303,7 +1352,8 @@ const LiveTrackingMapNew = () => {
             {isTrackingActive ? 'LIVE' : 'PAUSED'} {/* Label status */}
           </span>
           <span className="text-xs text-gray-500 font-normal">
-            • {vehicles.filter(v => inSelectedCluster(v.id)).length} trucks {/* Jumlah kendaraan yang ditampilkan sesuai filter */}
+            • {vehicles.filter((v) => inSelectedCluster(v.id)).length} trucks{' '}
+            {/* Jumlah kendaraan yang ditampilkan sesuai filter */}
           </span>
         </div>
         {/* Status Indikator: API Online/Offline */}
@@ -1328,7 +1378,8 @@ const LiveTrackingMapNew = () => {
         <div className="border-l border-gray-300 pl-3 flex items-center gap-2">
           <ClockIcon className="w-3 h-3 text-gray-600" />
           <span className="text-xs text-gray-700 font-medium">
-            Shift {getCurrentShift() === 'day' ? 'Siang' : 'Malam'} | {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+            Shift {getCurrentShift() === 'day' ? 'Siang' : 'Malam'} |{' '}
+            {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
           </span>
         </div>
 
@@ -1415,9 +1466,9 @@ const LiveTrackingMapNew = () => {
               <div className="mb-4 overflow-hidden rounded-lg border border-gray-100">
                 {' '}
                 {/* Container gambar banner */}
-                <TruckImage 
-                  id={selectedVehicle.id} 
-                  width={380} 
+                <TruckImage
+                  id={selectedVehicle.id}
+                  width={380}
                   height={200}
                   alt={selectedVehicle.truckName || selectedVehicle.plateNumber || 'Truck'}
                   className="h-48 w-full object-cover"
@@ -1431,25 +1482,38 @@ const LiveTrackingMapNew = () => {
                   {' '}
                   {/* Info kendaraan */}
                   <div className="flex items-baseline gap-2 mb-1">
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
+                    <span
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold"
+                      title="Urutan tampilan"
+                    >
                       {selectedVehicle._visualNumber || '?'}
                     </span>
                     <h4 className="text-lg font-semibold text-gray-900 leading-tight">
-                      {selectedVehicle.truckName || selectedVehicle.plateNumber || selectedVehicle.id} {/* Nama truck */}
+                      {selectedVehicle.truckName ||
+                        selectedVehicle.plateNumber ||
+                        selectedVehicle.id}{' '}
+                      {/* Nama truck */}
                     </h4>
                   </div>
                   <p className="text-sm text-gray-500 ml-8">
-                    {selectedVehicle.plateNumber && <span className="font-medium">{selectedVehicle.plateNumber}</span>}
+                    {selectedVehicle.plateNumber && (
+                      <span className="font-medium">{selectedVehicle.plateNumber}</span>
+                    )}
                     {selectedVehicle.truckNumber && (
-                      <span className="ml-2 text-gray-400">• Truck #{selectedVehicle.truckNumber}</span>
+                      <span className="ml-2 text-gray-700 font-semibold">
+                        • Truck #{selectedVehicle.truckNumber}
+                      </span>
                     )}
                     {selectedVehicle.driver?.name && (
-                      <span className="ml-2">• Driver: {selectedVehicle.driver.name}</span>
+                      <span className="ml-2 text-gray-500">
+                        • Driver: {selectedVehicle.driver.name}
+                      </span>
                     )}
                   </p>
                   <p className="text-xs text-gray-400 mt-1 ml-8">
                     <ClockIcon className="w-3 h-3 inline mr-1" />
-                    Shift {getCurrentShift() === 'day' ? 'Siang' : 'Malam'} • Rute hari ini
+                    Shift {getCurrentShift() === 'day' ? 'Siang' : 'Malam'} • Rute hari ini • Urutan
+                    ke-{selectedVehicle._visualNumber || '?'} dari tampilan
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1522,12 +1586,13 @@ const LiveTrackingMapNew = () => {
                     <div className="flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
                       <span className="text-xs text-gray-500">
-                        Update: {selectedVehicle?.lastUpdate ? 
-                          new Date(selectedVehicle.lastUpdate).toLocaleTimeString('id-ID', { 
-                            hour: '2-digit', 
-                            minute: '2-digit',
-                            second: '2-digit'
-                          }) 
+                        Update:{' '}
+                        {selectedVehicle?.lastUpdate
+                          ? new Date(selectedVehicle.lastUpdate).toLocaleTimeString('id-ID', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })
                           : 'N/A'}
                       </span>
                     </div>

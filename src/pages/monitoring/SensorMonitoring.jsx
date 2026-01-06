@@ -25,16 +25,16 @@ export default function SensorMonitoring() {
   useEffect(() => {
     let mounted = true;
     let isInitialLoad = true;
-    
+
     const loadData = async () => {
       try {
         // Only show loading on first load
         if (isInitialLoad) {
           setLoading(true);
         }
-        
+
         const response = await monitoringAPI.getTirePressureMonitoring();
-        
+
         if (!response.success) {
           throw new Error('Failed to load sensor data');
         }
@@ -58,7 +58,7 @@ export default function SensorMonitoring() {
 
     // Initial load
     loadData();
-    
+
     // Auto-refresh every 3 seconds
     const interval = setInterval(loadData, 3000);
 
@@ -88,50 +88,53 @@ export default function SensorMonitoring() {
   // Get alert status based on thresholds
   const getAlertStatus = React.useCallback((sensor) => {
     const alerts = [];
-    
+
     // ✅ NEW THRESHOLDS (Dec 2025 Update)
     // Temperature: Normal 60-84°C, Warning ≥85°C, Critical ≥100°C
     // Pressure: Normal 100-119 PSI, Critical Low <90 PSI, Critical High ≥120 PSI
-    
+
     // Temperature alerts (priority order)
     if (sensor.temperature >= 100) {
       alerts.push('Temperature Critical');
     } else if (sensor.temperature >= 85) {
       alerts.push('Temperature Warning');
     }
-    
+
     // Pressure alerts (priority order)
     if (sensor.pressure >= 120) {
       alerts.push('Pressure High');
     } else if (sensor.pressure < 90) {
       alerts.push('Pressure Low');
     }
-    
+
     // Return highest priority alert or Normal
     if (alerts.length > 0) {
       return alerts[0]; // Return first (highest priority) alert
     }
-    
+
     return sensor.status || 'Normal';
   }, []);
 
   // Get priority for sorting (lower number = higher priority)
-  const getPriority = React.useCallback((sensor) => {
-    const status = getAlertStatus(sensor);
-    const priorityMap = {
-      'Temperature Critical': 1,
-      'Pressure High': 2,
-      'Temperature Warning': 3,
-      'Pressure Low': 4,
-      'High Temp': 5,
-      'High Pressure': 6,
-      'Low Pressure': 7,
-      'Low Battery': 8,
-      Lost: 9,
-      Normal: 10,
-    };
-    return priorityMap[status] || 10;
-  }, [getAlertStatus]);
+  const getPriority = React.useCallback(
+    (sensor) => {
+      const status = getAlertStatus(sensor);
+      const priorityMap = {
+        'Temperature Critical': 1,
+        'Pressure High': 2,
+        'Temperature Warning': 3,
+        'Pressure Low': 4,
+        'High Temp': 5,
+        'High Pressure': 6,
+        'Low Pressure': 7,
+        'Low Battery': 8,
+        Lost: 9,
+        Normal: 10,
+      };
+      return priorityMap[status] || 10;
+    },
+    [getAlertStatus]
+  );
 
   // Filter logic with priority sorting (critical first)
   const filteredData = useMemo(() => {
@@ -167,11 +170,15 @@ export default function SensorMonitoring() {
     const normal = filteredData.filter((item) => getAlertStatus(item) === 'Normal').length;
     const warnings = filteredData.filter((item) => {
       const status = getAlertStatus(item);
-      return status === 'Temperature Warning' || status === 'Pressure Low' || status === 'Low Pressure';
+      return (
+        status === 'Temperature Warning' || status === 'Pressure Low' || status === 'Low Pressure'
+      );
     }).length;
     const critical = filteredData.filter((item) => {
       const status = getAlertStatus(item);
-      return status === 'Temperature Critical' || status === 'Pressure High' || status === 'High Temp';
+      return (
+        status === 'Temperature Critical' || status === 'Pressure High' || status === 'High Temp'
+      );
     }).length;
 
     return { total, normal, warnings, critical };
@@ -224,7 +231,7 @@ export default function SensorMonitoring() {
               <span className="text-xs text-gray-600">Live (3s)</span>
             </div>
           </div>
-          
+
           {/* Alert Thresholds Info */}
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
@@ -251,8 +258,18 @@ export default function SensorMonitoring() {
               <div className="flex items-center">
                 <div className="shrink-0">
                   <div className="rounded-md bg-blue-500 p-3">
-                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <svg
+                      className="h-6 w-6 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
                     </svg>
                   </div>
                 </div>
@@ -271,8 +288,18 @@ export default function SensorMonitoring() {
               <div className="flex items-center">
                 <div className="shrink-0">
                   <div className="rounded-md bg-green-500 p-3">
-                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="h-6 w-6 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                   </div>
                 </div>
@@ -291,8 +318,18 @@ export default function SensorMonitoring() {
               <div className="flex items-center">
                 <div className="shrink-0">
                   <div className="rounded-md bg-yellow-500 p-3">
-                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    <svg
+                      className="h-6 w-6 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
                     </svg>
                   </div>
                 </div>
@@ -311,8 +348,18 @@ export default function SensorMonitoring() {
               <div className="flex items-center">
                 <div className="shrink-0">
                   <div className="rounded-md bg-red-500 p-3">
-                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="h-6 w-6 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                   </div>
                 </div>
@@ -336,8 +383,18 @@ export default function SensorMonitoring() {
                 {/* Search */}
                 <div className="relative flex-1 min-w-[200px]">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    <svg
+                      className="h-5 w-5 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
                     </svg>
                   </div>
                   <input
@@ -354,13 +411,25 @@ export default function SensorMonitoring() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="justify-between min-w-[150px]">
                       {selectedTruck || 'All Trucks'}
-                      <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      <svg
+                        className="ml-2 w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
                       </svg>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-[150px]">
-                    <DropdownMenuItem onClick={() => setSelectedTruck('')}>All Trucks</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSelectedTruck('')}>
+                      All Trucks
+                    </DropdownMenuItem>
                     {uniqueTrucks.map((truck) => (
                       <DropdownMenuItem key={truck} onClick={() => setSelectedTruck(truck)}>
                         {truck}
@@ -374,18 +443,40 @@ export default function SensorMonitoring() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="justify-between min-w-[150px]">
                       {selectedStatus || 'All Status'}
-                      <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      <svg
+                        className="ml-2 w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
                       </svg>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-[150px]">
-                    <DropdownMenuItem onClick={() => setSelectedStatus('')}>All Status</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSelectedStatus('Normal')}>✅ Normal</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSelectedStatus('Temperature Critical')}>🔴 Temperature Critical</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSelectedStatus('Pressure High')}>🔴 Pressure High</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSelectedStatus('Temperature Warning')}>🟡 Temperature Warning</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSelectedStatus('Pressure Low')}>🟡 Pressure Low</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSelectedStatus('')}>
+                      All Status
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSelectedStatus('Normal')}>
+                      ✅ Normal
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSelectedStatus('Temperature Critical')}>
+                      🔴 Temperature Critical
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSelectedStatus('Pressure High')}>
+                      🔴 Pressure High
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSelectedStatus('Temperature Warning')}>
+                      🟡 Temperature Warning
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSelectedStatus('Pressure Low')}>
+                      🟡 Pressure Low
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -394,15 +485,31 @@ export default function SensorMonitoring() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="justify-between min-w-[120px]">
                       {itemsPerPage} / page
-                      <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      <svg
+                        className="ml-2 w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
                       </svg>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-[120px]">
-                    <DropdownMenuItem onClick={() => setItemsPerPage(25)}>25 / page</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setItemsPerPage(50)}>50 / page</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setItemsPerPage(100)}>100 / page</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setItemsPerPage(25)}>
+                      25 / page
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setItemsPerPage(50)}>
+                      50 / page
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setItemsPerPage(100)}>
+                      100 / page
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -418,32 +525,62 @@ export default function SensorMonitoring() {
               </div>
             ) : paginatedData.length === 0 ? (
               <div className="text-center py-12">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                <svg
+                  className="mx-auto h-12 w-12 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+                  />
                 </svg>
                 <h3 className="mt-2 text-sm font-medium text-gray-900">No sensor data</h3>
-                <p className="mt-1 text-sm text-gray-500">No sensors found matching your filters.</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  No sensors found matching your filters.
+                </p>
               </div>
             ) : (
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 w-16">
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 w-16"
+                    >
                       No
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50"
+                    >
                       Truck
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50"
+                    >
                       Sensor
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50"
+                    >
                       Pressure
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50"
+                    >
                       Temperature
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50"
+                    >
                       Status
                     </th>
                   </tr>
@@ -457,7 +594,9 @@ export default function SensorMonitoring() {
                           {rowNumber}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{sensor.truckCode}</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {sensor.truckCode}
+                          </div>
                           <div className="text-xs text-gray-500">{sensor.truckName}</div>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -490,7 +629,9 @@ export default function SensorMonitoring() {
                           </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(getAlertStatus(sensor))}`}>
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(getAlertStatus(sensor))}`}
+                          >
                             {getAlertStatus(sensor)}
                           </span>
                         </td>
@@ -529,8 +670,10 @@ export default function SensorMonitoring() {
                 <div>
                   <p className="text-sm text-gray-700">
                     Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-                    <span className="font-medium">{Math.min(startIndex + itemsPerPage, filteredData.length)}</span> of{' '}
-                    <span className="font-medium">{filteredData.length}</span> results
+                    <span className="font-medium">
+                      {Math.min(startIndex + itemsPerPage, filteredData.length)}
+                    </span>{' '}
+                    of <span className="font-medium">{filteredData.length}</span> results
                   </p>
                 </div>
                 <div>

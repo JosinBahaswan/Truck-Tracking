@@ -18,7 +18,7 @@ const CustomTooltip = ({ active, payload }) => {
 
 const renderActiveShape = (props) => {
   const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
-  
+
   return (
     <g>
       <Sector
@@ -49,18 +49,18 @@ const renderActiveShape = (props) => {
 
 const TirePressureChart = ({ data, loading }) => {
   console.log('🟢 TirePressureChart - Received data:', data, 'Loading:', loading);
-  
+
   // Force component update when data changes
   const [chartKey, setChartKey] = React.useState(0);
   const [activeIndex, setActiveIndex] = React.useState(0);
-  
+
   React.useEffect(() => {
     if (data && Array.isArray(data) && data.length > 0) {
-      setChartKey(prev => prev + 1);
+      setChartKey((prev) => prev + 1);
       console.log('🔄 TirePressureChart - chartKey updated');
     }
   }, [data]);
-  
+
   // Show loading skeleton
   if (loading) {
     console.log('⏳ TirePressureChart - Loading state');
@@ -76,7 +76,7 @@ const TirePressureChart = ({ data, loading }) => {
       </div>
     );
   }
-  
+
   // Validate data after loading - check if we have valid data
   if (!data || !Array.isArray(data) || data.length === 0) {
     console.warn('⚠️ TirePressureChart - Invalid or empty data');
@@ -89,9 +89,9 @@ const TirePressureChart = ({ data, loading }) => {
       </div>
     );
   }
-  
+
   // Check if all values are 0 (no real data)
-  const hasRealData = data.some(item => item.value > 0);
+  const hasRealData = data.some((item) => item.value > 0);
   if (!hasRealData) {
     console.warn('⚠️ TirePressureChart - All values are 0');
     return (
@@ -103,19 +103,20 @@ const TirePressureChart = ({ data, loading }) => {
       </div>
     );
   }
-  
+
   // Use default data if invalid
-  const validData = (data && Array.isArray(data) && data.length > 0) 
-    ? data 
-    : [
-        { name: 'Normal', value: 0 },
-        { name: 'Warning', value: 0 },
-        { name: 'Critical', value: 0 },
-        { name: 'No Data', value: 0 }
-      ];
-  
+  const validData =
+    data && Array.isArray(data) && data.length > 0
+      ? data
+      : [
+          { name: 'Normal', value: 0 },
+          { name: 'Warning', value: 0 },
+          { name: 'Critical', value: 0 },
+          { name: 'No Data', value: 0 },
+        ];
+
   console.log('🔍 TirePressureChart - Using data:', validData);
-  
+
   // Color mapping for tire status
   const COLORS = {
     Normal: '#10b981',
@@ -138,9 +139,12 @@ const TirePressureChart = ({ data, loading }) => {
   console.log('✅ TirePressureChart - Rendering chart');
 
   const activeData = chartData[activeIndex];
-  
+
   return (
-    <div className="flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm" id="tire-pressure-chart-container">
+    <div
+      className="flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm"
+      id="tire-pressure-chart-container"
+    >
       <div className="flex flex-row items-start space-y-0 pb-0 p-6">
         <div className="grid gap-1">
           <h3 className="font-semibold leading-none tracking-tight">Tire Pressure Status</h3>
@@ -165,10 +169,28 @@ const TirePressureChart = ({ data, loading }) => {
         </select>
       </div>
 
-      <div className="flex flex-1 justify-center pb-0 p-6" id="tire-chart-wrapper" style={{ minHeight: '300px' }}>
-        <div className="mx-auto aspect-square w-full max-w-[300px]" style={{ minHeight: '300px', minWidth: '300px' }}>
-          <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={300} id="tire-responsive-container" key={chartKey}>
-            <PieChart id="tire-pressure-pie-chart" key={`tire-pie-${chartKey}`} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+      <div
+        className="flex flex-1 justify-center pb-0 p-6"
+        id="tire-chart-wrapper"
+        style={{ minHeight: '300px' }}
+      >
+        <div
+          className="mx-auto aspect-square w-full max-w-[300px]"
+          style={{ minHeight: '300px', minWidth: '300px' }}
+        >
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minHeight={300}
+            minWidth={300}
+            id="tire-responsive-container"
+            key={chartKey}
+          >
+            <PieChart
+              id="tire-pressure-pie-chart"
+              key={`tire-pie-${chartKey}`}
+              margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+            >
               <defs>
                 <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
                   <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.1" />
@@ -192,8 +214,8 @@ const TirePressureChart = ({ data, loading }) => {
                 animationEasing="ease-in-out"
               >
                 {chartData.map((entry, index) => (
-                  <Cell 
-                    key={`tire-cell-${index}`} 
+                  <Cell
+                    key={`tire-cell-${index}`}
                     fill={entry.fill}
                     style={{
                       filter: activeIndex === index ? 'url(#shadow)' : 'none',
@@ -207,7 +229,12 @@ const TirePressureChart = ({ data, loading }) => {
                   content={({ viewBox }) => {
                     if (viewBox && 'cx' in viewBox && 'cy' in viewBox) {
                       return (
-                        <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                        <text
+                          x={viewBox.cx}
+                          y={viewBox.cy}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                        >
                           <tspan
                             x={viewBox.cx}
                             y={viewBox.cy}
@@ -215,7 +242,11 @@ const TirePressureChart = ({ data, loading }) => {
                           >
                             {activeData?.value.toLocaleString()}
                           </tspan>
-                          <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 24} className="fill-gray-500">
+                          <tspan
+                            x={viewBox.cx}
+                            y={(viewBox.cy || 0) + 24}
+                            className="fill-gray-500"
+                          >
                             {activeData?.name}
                           </tspan>
                         </text>
@@ -233,8 +264,8 @@ const TirePressureChart = ({ data, loading }) => {
         {needsAttention > 0 ? (
           <div className="flex items-center gap-2 leading-none font-medium text-amber-600 mb-2">
             <AlertTriangle className="h-4 w-4" />
-            {needsAttention} tire{needsAttention > 1 ? 's' : ''} need{needsAttention === 1 ? 's' : ''}{' '}
-            attention
+            {needsAttention} tire{needsAttention > 1 ? 's' : ''} need
+            {needsAttention === 1 ? 's' : ''} attention
           </div>
         ) : (
           <div className="flex items-center gap-2 leading-none font-medium text-green-600 mb-2">

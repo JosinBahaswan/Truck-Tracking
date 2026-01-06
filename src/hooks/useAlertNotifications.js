@@ -33,27 +33,26 @@ export const useAlertNotifications = () => {
       isPollingRef.current = true;
       console.log('🔔 Fetching active alerts for notifications...');
       const response = await alertEventsAPI.getActiveAlerts();
-      
+
       // Reset retry count on success
       retryCountRef.current = 0;
-      
+
       console.log('📥 Alert response:', response);
-      
+
       if (response.success && response.data) {
         const allActiveAlerts = Array.isArray(response.data) ? response.data : [];
         console.log('✅ Active alerts found:', allActiveAlerts.length);
-        
+
         // Sync directly with all active alerts (no time filter, no limit)
         // Sort by newest first
-        const activeAlerts = allActiveAlerts
-          .sort((a, b) => {
-            const timeA = new Date(a.created_at || a.occurredAt);
-            const timeB = new Date(b.created_at || b.occurredAt);
-            return timeB - timeA;
-          });
-        
+        const activeAlerts = allActiveAlerts.sort((a, b) => {
+          const timeA = new Date(a.created_at || a.occurredAt);
+          const timeB = new Date(b.created_at || b.occurredAt);
+          return timeB - timeA;
+        });
+
         console.log('📊 Active alerts for notifications:', activeAlerts.length);
-        
+
         // Create new alerts map for current active alerts
         const newAlertsMap = new Map();
         activeAlerts.forEach((alert) => {
@@ -74,7 +73,8 @@ export const useAlertNotifications = () => {
               type: getSeverityType(alert.severity),
               severity: alert.severity,
               truckId: alert.truck_id,
-              truckName: alert.truck?.name || alert.truck?.plate_number || `Truck #${alert.truck_id}`,
+              truckName:
+                alert.truck?.name || alert.truck?.plate_number || `Truck #${alert.truck_id}`,
               isRead: false,
               timestamp: new Date(alert.created_at || alert.occurredAt || Date.now()),
             });
@@ -112,7 +112,11 @@ export const useAlertNotifications = () => {
         console.log('📊 Notifications synced:', currentNotifications.length);
 
         // Show browser notification for new alerts only
-        if (newNotifications.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
+        if (
+          newNotifications.length > 0 &&
+          'Notification' in window &&
+          Notification.permission === 'granted'
+        ) {
           newNotifications.forEach((notif) => {
             new Notification(notif.title, {
               body: notif.message,
@@ -126,19 +130,21 @@ export const useAlertNotifications = () => {
       }
     } catch (error) {
       console.error('❌ Error fetching active alerts:', error.message);
-      
+
       // Increment retry count
       retryCountRef.current++;
-      
+
       // If max retries reached, wait longer before next attempt
       if (retryCountRef.current >= MAX_RETRIES) {
-        console.warn(`⚠️ Max retries (${MAX_RETRIES}) reached. Waiting ${RETRY_DELAY}ms before next attempt.`);
+        console.warn(
+          `⚠️ Max retries (${MAX_RETRIES}) reached. Waiting ${RETRY_DELAY}ms before next attempt.`
+        );
         // Reset after a delay
         setTimeout(() => {
           retryCountRef.current = 0;
         }, RETRY_DELAY);
       }
-      
+
       // Don't throw error, just log it to allow continuous polling
     } finally {
       setLoading(false);
@@ -155,7 +161,7 @@ export const useAlertNotifications = () => {
     const poll = () => {
       // Use longer interval if we've had errors
       const delay = retryCountRef.current >= MAX_RETRIES ? RETRY_DELAY : POLL_INTERVAL;
-      
+
       pollingTimeoutRef.current = setTimeout(() => {
         fetchActiveAlerts();
         poll();
@@ -240,10 +246,10 @@ export const useAlertNotifications = () => {
  */
 const getAlertTitle = (alert) => {
   const truckName = alert.truck?.name || alert.truck?.plate_number || `Truck #${alert.truck_id}`;
-  
+
   // Get alert type from alert object or alert_code
   let alertType = alert.alert?.name || alert.alert_name || 'Alert';
-  
+
   // If we have alert_code, use more descriptive name
   if (alert.alert_code) {
     switch (alert.alert_code) {

@@ -29,7 +29,7 @@ export default function TirePressureMonitoring() {
         console.log('📡 Loading tire pressure data from backend...');
 
         const response = await monitoringAPI.getTirePressureMonitoring();
-        
+
         if (!response.success) {
           throw new Error('Failed to load tire pressure data');
         }

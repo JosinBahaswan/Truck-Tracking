@@ -15,13 +15,13 @@ const buildApiUrl = (endpoint) => {
     console.error('❌ TRACKING_CONFIG.BASE_URL is not configured');
     return '';
   }
-  
+
   // Remove /api suffix from base URL if present and endpoint starts with /api
   let cleanBaseUrl = baseUrl;
   if (baseUrl.endsWith('/api') && endpoint.startsWith('/api')) {
     cleanBaseUrl = baseUrl.slice(0, -4);
   }
-  
+
   return `${cleanBaseUrl}${endpoint}`;
 };
 
@@ -72,7 +72,7 @@ const fetchWithTimeout = async (url, options = {}) => {
  * @param {string} params.endDate - ISO 8601 date string (optional)
  * @param {number} params.limit - Max locations (default: 100)
  * @returns {Promise<Object>} Response with timeline data and metadata
- * 
+ *
  * Response format:
  * {
  *   success: true,
@@ -104,7 +104,7 @@ const fetchWithTimeout = async (url, options = {}) => {
 export const getTruckHistory = async (truckId, params = {}) => {
   try {
     const queryParams = new URLSearchParams();
-    
+
     // Use start_date and end_date (with underscores) as per documentation
     if (params.startDate || params.start_date) {
       queryParams.append('start_date', params.start_date || params.startDate);
@@ -120,17 +120,17 @@ export const getTruckHistory = async (truckId, params = {}) => {
     // Updated endpoint: /api/history/trucks/{id} (not /api/v1/history/trucks/{id})
     const endpoint = `/api/history/trucks/${truckId}${queryString ? `?${queryString}` : ''}`;
     const url = buildApiUrl(endpoint);
-    
+
     console.log('🔍 Fetching truck history:', { truckId, params, url });
-    
+
     const response = await fetchWithTimeout(url);
-    
+
     console.log('✅ Truck history received:', {
       truckId,
       totalLocations: response?.meta?.totalLocations || 0,
-      dateRange: response?.meta?.dateRange
+      dateRange: response?.meta?.dateRange,
     });
-    
+
     return response;
   } catch (error) {
     console.error('❌ Error fetching truck history:', error);
@@ -146,7 +146,7 @@ export const getTruckHistory = async (truckId, params = {}) => {
  * @param {string} params.endDate - ISO 8601 date string (optional)
  * @param {number} params.tireNo - Filter for specific tire (1-10) (optional)
  * @returns {Promise<Object>} Response with statistics
- * 
+ *
  * Response format:
  * {
  *   success: true,
@@ -168,7 +168,7 @@ export const getTruckHistory = async (truckId, params = {}) => {
 export const getTruckStats = async (truckId, params = {}) => {
   try {
     const queryParams = new URLSearchParams();
-    
+
     // Use start_date and end_date (with underscores) as per documentation
     if (params.startDate || params.start_date) {
       queryParams.append('start_date', params.start_date || params.startDate);
@@ -184,17 +184,17 @@ export const getTruckStats = async (truckId, params = {}) => {
     // Updated endpoint: /api/history/trucks/{id}/stats (not /api/v1/history/trucks/{id}/stats)
     const endpoint = `/api/history/trucks/${truckId}/stats${queryString ? `?${queryString}` : ''}`;
     const url = buildApiUrl(endpoint);
-    
+
     console.log('📊 Fetching truck stats:', { truckId, params, url });
-    
+
     const response = await fetchWithTimeout(url);
-    
+
     console.log('✅ Truck stats received:', {
       truckId,
       totalReadings: response?.data?.period?.totalReadings || 0,
-      tiresCount: response?.data?.tires?.length || 0
+      tiresCount: response?.data?.tires?.length || 0,
     });
-    
+
     return response;
   } catch (error) {
     console.error('❌ Error fetching truck stats:', error);

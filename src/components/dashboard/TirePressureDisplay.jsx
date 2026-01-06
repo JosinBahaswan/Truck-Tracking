@@ -234,11 +234,11 @@ const TirePressureDisplay = ({
     // ⚠️ IMPORTANT: Backend sends pressure already in PSI (not kPa)
     // Field name "pressure_kpa" is misleading - data is actually in PSI
     const psi = pressure; // No conversion needed!
-    
+
     // ✅ NEW THRESHOLDS (Dec 2025 Update)
     // Temperature: Normal 60-84°C, Warning ≥85°C, Critical ≥100°C
     // Pressure: Normal 100-119 PSI, Critical Low <90 PSI, Critical High ≥120 PSI
-    
+
     // Check for critical temperature (≥ 100°C)
     if (temperature >= 100) {
       return {
@@ -247,10 +247,10 @@ const TirePressureDisplay = ({
         textColor: 'text-red-700',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-300',
-        message: 'Temperature Critical'
+        message: 'Temperature Critical',
       };
     }
-    
+
     // Check for temperature warning (≥ 85°C)
     if (temperature >= 85) {
       return {
@@ -259,10 +259,10 @@ const TirePressureDisplay = ({
         textColor: 'text-orange-700',
         bgColor: 'bg-orange-50',
         borderColor: 'border-orange-300',
-        message: 'Temperature Warning'
+        message: 'Temperature Warning',
       };
     }
-    
+
     // Check for critical low pressure (< 90 PSI)
     if (psi < 90) {
       return {
@@ -271,10 +271,10 @@ const TirePressureDisplay = ({
         textColor: 'text-red-700',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-300',
-        message: 'Pressure Critical Low'
+        message: 'Pressure Critical Low',
       };
     }
-    
+
     // Check for critical high pressure (≥ 120 PSI)
     if (psi >= 120) {
       return {
@@ -283,10 +283,10 @@ const TirePressureDisplay = ({
         textColor: 'text-red-700',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-300',
-        message: 'Pressure Critical High'
+        message: 'Pressure Critical High',
       };
     }
-    
+
     // Check for exType (sensor exception)
     if (exType) {
       return {
@@ -295,7 +295,7 @@ const TirePressureDisplay = ({
         textColor: 'text-red-700',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
-        message: 'Sensor Error'
+        message: 'Sensor Error',
       };
     }
 
@@ -305,7 +305,7 @@ const TirePressureDisplay = ({
       textColor: 'text-green-700',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200',
-      message: 'Normal'
+      message: 'Normal',
     };
   };
 

@@ -33,7 +33,7 @@ const HistoryTrackingMap = () => {
     '#98D8C8',
     '#F7DC6F',
     '#BB8FCE',
-    '#85C1E9', 
+    '#85C1E9',
   ]);
 
   // History-specific states
@@ -137,77 +137,99 @@ const HistoryTrackingMap = () => {
       try {
         const metaRes = await trucksApi.getById(truckId);
         const meta = metaRes?.data?.truck || metaRes?.data || {};
-        const deletedRaw = meta?.deletedAt || meta?.deleted_at || meta?.deleted_at_timestamp || null;
+        const deletedRaw =
+          meta?.deletedAt || meta?.deleted_at || meta?.deleted_at_timestamp || null;
         if (deletedRaw) deletedAt = new Date(deletedRaw);
         if (deletedAt) {
           setDeletedAtByVehicle((prev) => ({ ...prev, [String(truckId)]: deletedAt }));
         }
       } catch (metaErr) {
-        console.warn('Could not fetch truck metadata for deletion info:', metaErr.message || metaErr);
+        console.warn(
+          'Could not fetch truck metadata for deletion info:',
+          metaErr.message || metaErr
+        );
       }
-      
+
       // Try NEW History API first
       try {
         console.log('🆕 Attempting History API with sensor snapshots...');
         console.log('📍 API Config:', {
           baseUrl: import.meta.env.VITE_TRACKING_API_BASE_URL,
           truckId,
-          dateRange: { start: start.toISOString(), end: end.toISOString() }
+          dateRange: { start: start.toISOString(), end: end.toISOString() },
         });
-        
+
         const response = await historyAPI.getTruckHistory(truckId, {
           startDate: start.toISOString(),
           endDate: end.toISOString(),
-          limit: 10000
+          limit: 10000,
         });
-        
+
         console.log('📥 History API Response:', response);
-        console.log('📊 Response Type:', typeof response, 'Has success?', response?.success, 'Has data?', !!response?.data);
-        
-        if (response.success && response.data && Array.isArray(response.data) && response.data.length > 0) {
+        console.log(
+          '📊 Response Type:',
+          typeof response,
+          'Has success?',
+          response?.success,
+          'Has data?',
+          !!response?.data
+        );
+
+        if (
+          response.success &&
+          response.data &&
+          Array.isArray(response.data) &&
+          response.data.length > 0
+        ) {
           const historyData = response.data;
-          
+
           console.log(`📦 Received ${historyData.length} history points for truck ${truckId}`);
-          
+
           // IMPORTANT: Filter to ensure we only get data for THIS truck AND within date range
-          const filteredData = historyData.filter(point => {
+          const filteredData = historyData.filter((point) => {
             // Check if this point belongs to the requested truck
             const pointTruckId = point.truck_id || point.truckId || point.truck_info?.truck_id;
             const isSameTruck = String(pointTruckId) === String(truckId);
-            
+
             if (!isSameTruck) {
               return false;
             }
-            
+
             // 🔒 CRITICAL: Check if timestamp is within selected date range
             const timestamp = point.timestamp;
             if (timestamp) {
               const recordDate = new Date(timestamp);
               const isInRange = recordDate >= start && recordDate <= end;
-              
+
               if (!isInRange) {
-                console.log(`🚫 Filtering out record from ${recordDate.toLocaleString()} - outside selected range ${start.toLocaleString()} to ${end.toLocaleString()}`);
+                console.log(
+                  `🚫 Filtering out record from ${recordDate.toLocaleString()} - outside selected range ${start.toLocaleString()} to ${end.toLocaleString()}`
+                );
                 return false;
               }
             }
-            
+
             return true;
           });
-          
+
           if (filteredData.length === 0) {
-            console.warn(`⚠️ No data found for truck ${truckId} after filtering. Received ${historyData.length} points total.`);
+            console.warn(
+              `⚠️ No data found for truck ${truckId} after filtering. Received ${historyData.length} points total.`
+            );
             return { points: [], records: [], tireData: [] };
           }
-          
-          console.log(`✅ Filtered to ${filteredData.length} points for truck ${truckId} (removed ${historyData.length - filteredData.length} points from other trucks)`);
-          
+
+          console.log(
+            `✅ Filtered to ${filteredData.length} points for truck ${truckId} (removed ${historyData.length - filteredData.length} points from other trucks)`
+          );
+
           // Convert API response to route points format
           let enriched = filteredData
             .map((point) => {
               const lat = parseFloat(point.location?.lat);
               const lng = parseFloat(point.location?.lng);
               const t = point.timestamp ? new Date(point.timestamp) : null;
-              
+
               // Convert tires array to tireData format matching old structure
               const tireData = (point.tires || []).map((tire) => ({
                 tireNo: tire.tireNo,
@@ -216,17 +238,17 @@ const HistoryTrackingMap = () => {
                 tirepValue: tire.pressure,
                 exType: tire.status,
                 bat: tire.battery,
-                timestamp: tire.timestamp ? new Date(tire.timestamp) : null
+                timestamp: tire.timestamp ? new Date(tire.timestamp) : null,
               }));
-              
+
               // Extract truck_info from snapshot (for deleted trucks)
               const truckInfo = point.truck_info || {};
-              
-                return { 
-                lat, 
-                lng, 
-                t, 
-                raw: point, 
+
+              return {
+                lat,
+                lng,
+                t,
+                raw: point,
                 speed: point.location?.speed || null,
                 heading: point.location?.heading || null,
                 tireData: tireData,
@@ -238,39 +260,39 @@ const HistoryTrackingMap = () => {
                   model: truckInfo.truck_model,
                   year: truckInfo.truck_year,
                   driver: truckInfo.driver_name,
-                  vendor: truckInfo.vendor_name
-                }
+                  vendor: truckInfo.vendor_name,
+                },
               };
             })
             .filter((r) => !isNaN(r.lat) && !isNaN(r.lng) && r.lat !== 0 && r.lng !== 0)
-              .filter((r) => !deletedAt || !r.t || r.t < deletedAt)
-              .sort((a, b) => {
-                // Sort by timestamp (oldest first)
-                if (!a.t || !b.t) return 0;
-                return a.t - b.t;
-              });
-          
+            .filter((r) => !deletedAt || !r.t || r.t < deletedAt)
+            .sort((a, b) => {
+              // Sort by timestamp (oldest first)
+              if (!a.t || !b.t) return 0;
+              return a.t - b.t;
+            });
+
           const routePoints = enriched.map((r) => [r.lat, r.lng]);
           const initialTireData = enriched.length > 0 ? enriched[0].tireData : [];
-          
+
           console.log(`✅ NEW API: Loaded ${routePoints.length} route points`);
           console.log(`🔧 Sensors per point: ${initialTireData.length}`);
           console.log(`📊 Metadata:`, response.meta);
-          
+
           setIsUsingHistoricalData(true); // Mark as using accurate historical data
-          
-          return { 
-            points: routePoints, 
-            records: enriched, 
+
+          return {
+            points: routePoints,
+            records: enriched,
             tireData: initialTireData,
-            meta: response.meta
+            meta: response.meta,
           };
         } else {
           console.warn('⚠️ History API returned no data, falling back to old API...');
           console.warn('Response details:', {
             success: response?.success,
             dataLength: response?.data?.length,
-            meta: response?.meta
+            meta: response?.meta,
           });
         }
       } catch (historyError) {
@@ -278,7 +300,7 @@ const HistoryTrackingMap = () => {
         console.error('  Error:', historyError.message);
         console.error('  Stack:', historyError.stack);
       }
-      
+
       // No fallback - if History API fails or returns no data, return empty
       console.warn(`⚠️ No history data available for truck ${truckId} in selected date range`);
       return { points: [], records: [], tireData: [] };
@@ -332,43 +354,48 @@ const HistoryTrackingMap = () => {
         // Load basic vehicle data from Tracking API (active trucks only)
         const response = await trackingAPI.getLiveTracking();
         let vehicleData = [];
-        
+
         if (response && response.success && Array.isArray(response.data?.trucks)) {
           const trucks = response.data.trucks;
-          
+
           vehicleData = trucks
             .map((truck) => {
               const id = truck.truck_id ? String(truck.truck_id) : null;
               const location = truck.location;
-              
+
               if (!location || !location.latitude || !location.longitude) {
                 console.warn(`⚠️ No location data for truck ${id}`);
                 return null;
               }
-              
+
               const lat = parseFloat(location.latitude);
               const lng = parseFloat(location.longitude);
-              
+
               if (!id || !isFinite(lat) || !isFinite(lng)) return null;
-              
+
               // 🔒 FILTER: Only show trucks that existed on the selected date
               // Check if truck was created before or on the selected date
-              const truckCreatedAt = truck.created_at || truck.createdAt || truck.created_at_timestamp;
+              const truckCreatedAt =
+                truck.created_at || truck.createdAt || truck.created_at_timestamp;
               if (truckCreatedAt) {
                 const createdDate = new Date(truckCreatedAt);
                 // selectedEnd represents end of selected day, so truck should exist by then
                 if (createdDate > selectedEnd) {
-                  console.log(`🚫 Active truck ${id} (${truck.plate_number}) - created ${createdDate.toLocaleDateString()} after selected date ${selectedEnd.toLocaleDateString()}`);
+                  console.log(
+                    `🚫 Active truck ${id} (${truck.plate_number}) - created ${createdDate.toLocaleDateString()} after selected date ${selectedEnd.toLocaleDateString()}`
+                  );
                   return null;
                 }
-                console.log(`✅ Active truck ${id} passed created_at check - created ${createdDate.toLocaleDateString()} <= ${selectedEnd.toLocaleDateString()}`);
+                console.log(
+                  `✅ Active truck ${id} passed created_at check - created ${createdDate.toLocaleDateString()} <= ${selectedEnd.toLocaleDateString()}`
+                );
               } else {
                 console.warn(`⚠️ Active truck ${id} has NO created_at field!`);
               }
-              
+
               // Calculate average battery from device
               const battery = truck.device?.battery?.average || 0;
-              
+
               // Map sensors to tireData format
               const tireData = (truck.sensors || []).map((sensor) => ({
                 tireNo: sensor.tireNo,
@@ -378,7 +405,7 @@ const HistoryTrackingMap = () => {
                 exType: sensor.exType,
                 bat: sensor.bat,
               }));
-              
+
               return {
                 id,
                 truckNumber: truck.truck_id,
@@ -409,58 +436,70 @@ const HistoryTrackingMap = () => {
 
         // Load deleted trucks that might have history in the selected date range
         try {
-          const allTrucksResponse = await trucksApi.getAll({ 
+          const allTrucksResponse = await trucksApi.getAll({
             limit: 1000,
-            includeDeleted: true
+            includeDeleted: true,
           });
           const allTrucks = allTrucksResponse?.data?.trucks || allTrucksResponse?.data || [];
-          
-          console.log(`📦 Loaded ${allTrucks.length} total trucks (including deleted) from management API`);
-          
+
+          console.log(
+            `📦 Loaded ${allTrucks.length} total trucks (including deleted) from management API`
+          );
+
           // Find trucks that were deleted but might have history in selected date range
-          const deletedTrucks = allTrucks.filter(truck => {
-            const deletedAtField = truck.deleted_at || truck.deletedAt || truck.deleted_at_timestamp;
+          const deletedTrucks = allTrucks.filter((truck) => {
+            const deletedAtField =
+              truck.deleted_at || truck.deletedAt || truck.deleted_at_timestamp;
             if (!deletedAtField) return false;
-            
+
             try {
               const deletedDate = new Date(deletedAtField);
               const selectedDateStart = new Date(selectedStart);
               const selectedDateEnd = new Date(selectedEnd);
-              
+
               // � DEBUG: Log truck info to check created_at availability
-              const truckCreatedAt = truck.created_at || truck.createdAt || truck.created_at_timestamp;
+              const truckCreatedAt =
+                truck.created_at || truck.createdAt || truck.created_at_timestamp;
               console.log(`🔍 Checking deleted truck ${truck.id}:`, {
                 plate: truck.plate || truck.plate_number,
                 created_at: truckCreatedAt,
                 deleted_at: deletedAtField,
-                selectedDate: selectedDateStart.toLocaleDateString()
+                selectedDate: selectedDateStart.toLocaleDateString(),
               });
-              
+
               // 🔒 FILTER 1: Truck must have been created BEFORE or DURING the selected date
               if (truckCreatedAt) {
                 const createdDate = new Date(truckCreatedAt);
-                
+
                 // 🔒 STRICT: Truck must be created BEFORE the selected date START
                 // This ensures truck was already existing when the selected date began
                 if (createdDate > selectedDateEnd) {
-                  console.log(`🚫 Deleted truck ${truck.id} (${truck.plate || truck.plate_number}) - created ${createdDate.toLocaleDateString()} AFTER selected date end ${selectedDateEnd.toLocaleDateString()}`);
+                  console.log(
+                    `🚫 Deleted truck ${truck.id} (${truck.plate || truck.plate_number}) - created ${createdDate.toLocaleDateString()} AFTER selected date end ${selectedDateEnd.toLocaleDateString()}`
+                  );
                   return false;
                 }
-                
-                console.log(`✅ Deleted truck ${truck.id} passed created_at check - created ${createdDate.toLocaleDateString()} <= ${selectedDateEnd.toLocaleDateString()}`);
+
+                console.log(
+                  `✅ Deleted truck ${truck.id} passed created_at check - created ${createdDate.toLocaleDateString()} <= ${selectedDateEnd.toLocaleDateString()}`
+                );
               } else {
-                console.warn(`⚠️ Deleted truck ${truck.id} has NO created_at field! Will be excluded for safety.`);
+                console.warn(
+                  `⚠️ Deleted truck ${truck.id} has NO created_at field! Will be excluded for safety.`
+                );
                 // 🔒 STRICT: If no created_at, exclude deleted truck for safety
                 // This prevents old deleted trucks without proper metadata from appearing
                 return false;
               }
-              
+
               // 🔒 FILTER 2: Include only if deleted AFTER selected date start (was alive during selected date)
               if (deletedDate < selectedDateStart) {
-                console.log(`🚫 Deleted truck ${truck.id} (${truck.plate || truck.plate_number}) - deleted ${deletedDate.toLocaleDateString()} BEFORE selected date start ${selectedDateStart.toLocaleDateString()}`);
+                console.log(
+                  `🚫 Deleted truck ${truck.id} (${truck.plate || truck.plate_number}) - deleted ${deletedDate.toLocaleDateString()} BEFORE selected date start ${selectedDateStart.toLocaleDateString()}`
+                );
                 return false;
               }
-              
+
               console.log(`✅ Deleted truck ${truck.id} passed all filters - will be included`);
               return true;
             } catch (e) {
@@ -468,23 +507,27 @@ const HistoryTrackingMap = () => {
               return false;
             }
           });
-          
-          console.log(`📦 Found ${deletedTrucks.length} deleted trucks with potential history for ${selectedStart.toLocaleDateString()}`);
-          
+
+          console.log(
+            `📦 Found ${deletedTrucks.length} deleted trucks with potential history for ${selectedStart.toLocaleDateString()}`
+          );
+
           // Add deleted trucks to vehicleData WITHOUT checking history first
           // History will be loaded later in the loadRouteHistory loop
           for (const truck of deletedTrucks) {
             const truckId = String(truck.id || truck.truck_id);
-            
-            if (vehicleData.find(v => v.id === truckId)) {
+
+            if (vehicleData.find((v) => v.id === truckId)) {
               continue;
             }
-            
-            const deletedAtField = truck.deleted_at || truck.deletedAt || truck.deleted_at_timestamp;
-            
+
+            const deletedAtField =
+              truck.deleted_at || truck.deletedAt || truck.deleted_at_timestamp;
+
             // Store created_at for later verification
-            const truckCreatedAtField = truck.created_at || truck.createdAt || truck.created_at_timestamp;
-            
+            const truckCreatedAtField =
+              truck.created_at || truck.createdAt || truck.created_at_timestamp;
+
             vehicleData.push({
               id: truckId,
               truckNumber: truck.id || truck.truck_id,
@@ -509,10 +552,12 @@ const HistoryTrackingMap = () => {
               isDeleted: true,
               deletedAt: new Date(deletedAtField),
               createdAt: truckCreatedAtField ? new Date(truckCreatedAtField) : null,
-              verifiedCreatedAt: !!truckCreatedAtField // Mark if created_at exists
+              verifiedCreatedAt: !!truckCreatedAtField, // Mark if created_at exists
             });
-            
-            console.log(`   ✅ Added deleted truck ${truckId} (${truck.plate || truck.plate_number}) to vehicle list`);
+
+            console.log(
+              `   ✅ Added deleted truck ${truckId} (${truck.plate || truck.plate_number}) to vehicle list`
+            );
           }
         } catch (error) {
           console.error('⚠️ Could not load deleted trucks:', error.message);
@@ -522,7 +567,7 @@ const HistoryTrackingMap = () => {
         const routesData = {};
         const routeVisibilityData = {};
         const vehiclesWithHistory = []; // 🔒 Only keep trucks that have history data
-        
+
         // 🔒 Clear routeMetaByVehicleRef before loading new data
         routeMetaByVehicleRef.current = {};
 
@@ -530,97 +575,114 @@ const HistoryTrackingMap = () => {
           console.log(`🔄 Loading route history for vehicle: ${vehicle.id}`);
           const history = await loadRouteHistory(vehicle.id, '24h');
           console.log(`📍 Route points loaded for ${vehicle.id}:`, history.points.length);
-          
+
           if (history.points.length > 0) {
             // 🔒 CRITICAL: For deleted trucks, verify created_at before showing
             if (vehicle.isDeleted && vehicle.createdAt) {
               const { start: selectedStart, end: selectedEnd } = getDayWindow(selectedDate);
-              
+
               // If truck was created AFTER the selected date, don't show it even if has history
               if (vehicle.createdAt > selectedEnd) {
-                console.log(`🚫 FINAL CHECK: Deleted truck ${vehicle.id} created ${vehicle.createdAt.toLocaleDateString()} AFTER selected date ${selectedEnd.toLocaleDateString()} - WILL NOT DISPLAY (icon + route)`);
+                console.log(
+                  `🚫 FINAL CHECK: Deleted truck ${vehicle.id} created ${vehicle.createdAt.toLocaleDateString()} AFTER selected date ${selectedEnd.toLocaleDateString()} - WILL NOT DISPLAY (icon + route)`
+                );
                 // 🔒 Do NOT add to routesData or vehiclesWithHistory
                 continue; // Skip this truck completely
               }
             }
-            
+
             // 🔒 FILTER: Check if history records are actually within selected date range
             const historyRecords = history.records || [];
             const { start: selectedStart, end: selectedEnd } = getDayWindow(selectedDate);
-            
-            console.log(`🔍 Checking ${historyRecords.length} history records for truck ${vehicle.id}`, {
-              selectedRange: `${selectedStart.toLocaleDateString()} to ${selectedEnd.toLocaleDateString()}`,
-              plateNumber: vehicle.plateNumber
-            });
-            
+
+            console.log(
+              `🔍 Checking ${historyRecords.length} history records for truck ${vehicle.id}`,
+              {
+                selectedRange: `${selectedStart.toLocaleDateString()} to ${selectedEnd.toLocaleDateString()}`,
+                plateNumber: vehicle.plateNumber,
+              }
+            );
+
             let hasRelevantHistory = false;
             let recordsInRange = 0;
             let recordsOutOfRange = 0;
-            
+
             if (historyRecords.length > 0) {
               // Check if any history record is within the selected date range
               for (const record of historyRecords) {
                 const recordTime = record.t || record.timestamp;
                 if (recordTime) {
                   const recordDate = new Date(recordTime);
-                  
+
                   // Check if this record is within selected date range
                   if (recordDate >= selectedStart && recordDate <= selectedEnd) {
                     hasRelevantHistory = true;
                     recordsInRange++;
                   } else {
                     recordsOutOfRange++;
-                    console.log(`⚠️ Record at ${recordDate.toLocaleString()} is outside range for truck ${vehicle.id}`);
+                    console.log(
+                      `⚠️ Record at ${recordDate.toLocaleString()} is outside range for truck ${vehicle.id}`
+                    );
                   }
                 }
               }
-              
+
               console.log(`📊 Truck ${vehicle.id} stats:`, {
                 totalRecords: historyRecords.length,
                 inRange: recordsInRange,
                 outOfRange: recordsOutOfRange,
-                hasRelevantHistory
+                hasRelevantHistory,
               });
-              
+
               if (!hasRelevantHistory) {
-                console.log(`🚫 Truck ${vehicle.id} (${vehicle.plateNumber}) has ${historyRecords.length} history records but NONE in selected date range - will be hidden (icon + route)`);
+                console.log(
+                  `🚫 Truck ${vehicle.id} (${vehicle.plateNumber}) has ${historyRecords.length} history records but NONE in selected date range - will be hidden (icon + route)`
+                );
                 // 🔒 Do NOT add to routesData or vehiclesWithHistory
                 continue; // Skip this truck
               }
-              
-              console.log(`✅ Truck ${vehicle.id} (${vehicle.plateNumber}) has ${recordsInRange} records in selected date range - will be displayed`);
+
+              console.log(
+                `✅ Truck ${vehicle.id} (${vehicle.plateNumber}) has ${recordsInRange} records in selected date range - will be displayed`
+              );
             }
-            
+
             // Store route with proper isolation per vehicle
             routesData[vehicle.id] = [...history.points]; // Clone array to prevent reference issues
             routeVisibilityData[vehicle.id] = true;
             // store meta records for stats
             routeMetaByVehicleRef.current[vehicle.id] = [...history.records]; // Clone records too
-            
+
             // IMPORTANT: Update vehicle position to first point in history route
             // This ensures marker shows historical start position, not current live position
             vehicle.position = [history.points[0][0], history.points[0][1]]; // Clone coordinates
             console.log(`📍 Updated ${vehicle.id} marker to history start:`, vehicle.position);
             console.log(`   First point: [${history.points[0][0]}, ${history.points[0][1]}]`);
-            console.log(`   Last point: [${history.points[history.points.length-1][0]}, ${history.points[history.points.length-1][1]}]`);
-            
+            console.log(
+              `   Last point: [${history.points[history.points.length - 1][0]}, ${history.points[history.points.length - 1][1]}]`
+            );
+
             // 🔒 IMPORTANT: Only add truck to list if it has history data on selected date
             vehiclesWithHistory.push(vehicle);
             console.log(`✅ Truck ${vehicle.id} has history data - will be displayed`);
           } else {
-            console.log(`🚫 Truck ${vehicle.id} has NO history data on selected date - will be hidden`);
+            console.log(
+              `🚫 Truck ${vehicle.id} has NO history data on selected date - will be hidden`
+            );
           }
         }
 
         // 🔒 Only set vehicles and routes that have history data on the selected date
-        console.log(`📊 Total trucks with history: ${vehiclesWithHistory.length} out of ${vehicleData.length}`);
+        console.log(
+          `📊 Total trucks with history: ${vehiclesWithHistory.length} out of ${vehicleData.length}`
+        );
         console.log(`📊 Total routes to display: ${Object.keys(routesData).length}`);
-        
+
         // 🔒 CRITICAL: Clean up old routes, markers, and start markers for vehicles not in new list
-        const newVehicleIds = new Set(vehiclesWithHistory.map(v => v.id));
-        
+        const newVehicleIds = new Set(vehiclesWithHistory.map((v) => v.id));
+
         // Remove old routes
-        Object.keys(routeLinesRef.current).forEach(vehicleId => {
+        Object.keys(routeLinesRef.current).forEach((vehicleId) => {
           if (!newVehicleIds.has(vehicleId) && routeLinesRef.current[vehicleId]) {
             console.log(`🗑️ Removing old route for vehicle ${vehicleId}`);
             if (map.hasLayer(routeLinesRef.current[vehicleId])) {
@@ -629,9 +691,9 @@ const HistoryTrackingMap = () => {
             delete routeLinesRef.current[vehicleId];
           }
         });
-        
+
         // Remove old markers (truck icons)
-        Object.keys(markersRef.current).forEach(vehicleId => {
+        Object.keys(markersRef.current).forEach((vehicleId) => {
           if (!newVehicleIds.has(vehicleId) && markersRef.current[vehicleId]) {
             console.log(`🗑️ Removing old marker (icon) for vehicle ${vehicleId}`);
             if (map.hasLayer(markersRef.current[vehicleId])) {
@@ -640,9 +702,9 @@ const HistoryTrackingMap = () => {
             delete markersRef.current[vehicleId];
           }
         });
-        
+
         // Remove old route start markers (bulat)
-        Object.keys(routeStartMarkersRef.current).forEach(vehicleId => {
+        Object.keys(routeStartMarkersRef.current).forEach((vehicleId) => {
           if (!newVehicleIds.has(vehicleId) && routeStartMarkersRef.current[vehicleId]) {
             console.log(`🗑️ Removing old start marker (bulat) for vehicle ${vehicleId}`);
             if (map.hasLayer(routeStartMarkersRef.current[vehicleId])) {
@@ -651,7 +713,7 @@ const HistoryTrackingMap = () => {
             delete routeStartMarkersRef.current[vehicleId];
           }
         });
-        
+
         setVehicles(vehiclesWithHistory);
         setVehicleRoutes(routesData);
         setRouteVisible(routeVisibilityData);
@@ -798,7 +860,7 @@ const HistoryTrackingMap = () => {
             points: routeHistory.length,
             firstPoint: routeHistory[0],
             lastPoint: routeHistory[routeHistory.length - 1],
-            color: routeColor
+            color: routeColor,
           });
 
           const routeLine = L.polyline(routeHistory, {
@@ -848,7 +910,7 @@ const HistoryTrackingMap = () => {
                 permanent: false,
                 direction: 'top',
               });
-            
+
             // Track the start marker for cleanup
             routeStartMarkersRef.current[vehicle.id] = startMarker;
           }
@@ -881,7 +943,7 @@ const HistoryTrackingMap = () => {
           delete markersRef.current[id];
         }
       });
-      
+
       // Remove route start markers that are no longer needed
       Object.keys(routeStartMarkersRef.current).forEach((id) => {
         if (!currentVehicleIds.has(id)) {
@@ -921,19 +983,21 @@ const HistoryTrackingMap = () => {
     if (routeHistory.length === 0 || playbackIndex >= routeHistory.length) return;
 
     const currentPosition = routeHistory[playbackIndex];
-    
+
     // Update tire data from current history point
     const currentRecord = routeMetaByVehicle[selectedVehicle.id]?.[playbackIndex];
     if (currentRecord) {
       // Update timestamp
       setCurrentPlaybackTimestamp(currentRecord.t);
-      
+
       // Update tire data
       if (currentRecord.tireData && currentRecord.tireData.length > 0) {
-        console.log(`🔄 Playback ${playbackIndex + 1}/${routeHistory.length} | Time: ${currentRecord.t?.toLocaleTimeString('id-ID') || 'N/A'}`);
+        console.log(
+          `🔄 Playback ${playbackIndex + 1}/${routeHistory.length} | Time: ${currentRecord.t?.toLocaleTimeString('id-ID') || 'N/A'}`
+        );
         console.log('📊 Sensors:', currentRecord.tireData.length, '| Sample:', {
           tire1_temp: currentRecord.tireData[0]?.tempValue + '°C',
-          tire1_pressure: currentRecord.tireData[0]?.tirepValue + ' kPa'
+          tire1_pressure: currentRecord.tireData[0]?.tirepValue + ' kPa',
         });
         setCurrentPlaybackTireData(currentRecord.tireData);
       } else {
@@ -1078,7 +1142,7 @@ const HistoryTrackingMap = () => {
       map.removeLayer(playbackMarkerRef.current);
       playbackMarkerRef.current = null;
     }
-    
+
     // Reset playback tire data when vehicle is deselected
     if (!selectedVehicle) {
       setCurrentPlaybackTireData(null);
@@ -1224,7 +1288,7 @@ const HistoryTrackingMap = () => {
           <div className="flex-1 min-w-0">
             <h4 className="text-base font-bold text-gray-900">History Tracking</h4>
             <p className="text-xs text-gray-500 mt-0.5">Pantau riwayat perjalanan kendaraan</p>
-            
+
             {/* Auto-refresh indicator */}
             <div className="flex items-center gap-2 mt-1">
               {isAutoRefreshing && (
@@ -1278,50 +1342,51 @@ const HistoryTrackingMap = () => {
                   Viewing historical route playback
                 </div>
                 {/* Show snapshot data if available from current playback point */}
-                {currentPlaybackTimestamp && routeMetaByVehicle[selectedVehicle.id]?.[playbackIndex]?.truckSnapshot && (() => {
-                  const snapshot = routeMetaByVehicle[selectedVehicle.id][playbackIndex].truckSnapshot;
-                  return (
-                    <div className="mt-2 pt-2 border-t border-blue-200 space-y-1">
-                      {snapshot.name && (
-                        <div className="text-[10px] text-blue-600">
-                          📋 <span className="font-medium">Name:</span> {snapshot.name}
+                {currentPlaybackTimestamp &&
+                  routeMetaByVehicle[selectedVehicle.id]?.[playbackIndex]?.truckSnapshot &&
+                  (() => {
+                    const snapshot =
+                      routeMetaByVehicle[selectedVehicle.id][playbackIndex].truckSnapshot;
+                    return (
+                      <div className="mt-2 pt-2 border-t border-blue-200 space-y-1">
+                        {snapshot.name && (
+                          <div className="text-[10px] text-blue-600">
+                            📋 <span className="font-medium">Name:</span> {snapshot.name}
+                          </div>
+                        )}
+                        {snapshot.plate && (
+                          <div className="text-[10px] text-blue-600">
+                            🚗 <span className="font-medium">Plate:</span> {snapshot.plate}
+                          </div>
+                        )}
+                        {snapshot.driver && (
+                          <div className="text-[10px] text-blue-600">
+                            👤 <span className="font-medium">Driver:</span> {snapshot.driver}
+                          </div>
+                        )}
+                        {snapshot.vendor && (
+                          <div className="text-[10px] text-blue-600">
+                            🏢 <span className="font-medium">Vendor:</span> {snapshot.vendor}
+                          </div>
+                        )}
+                        <div className="text-[9px] text-blue-500 italic mt-1">
+                          ✓ Data from historical snapshot
                         </div>
-                      )}
-                      {snapshot.plate && (
-                        <div className="text-[10px] text-blue-600">
-                          🚗 <span className="font-medium">Plate:</span> {snapshot.plate}
-                        </div>
-                      )}
-                      {snapshot.driver && (
-                        <div className="text-[10px] text-blue-600">
-                          👤 <span className="font-medium">Driver:</span> {snapshot.driver}
-                        </div>
-                      )}
-                      {snapshot.vendor && (
-                        <div className="text-[10px] text-blue-600">
-                          🏢 <span className="font-medium">Vendor:</span> {snapshot.vendor}
-                        </div>
-                      )}
-                      <div className="text-[9px] text-blue-500 italic mt-1">
-                        ✓ Data from historical snapshot
                       </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
               </div>
             </div>
           </div>
         )}
-        
+
         {/* API Status Indicator - Only show if using historical data */}
         {selectedVehicle && isUsingHistoricalData && (
           <div className="px-3 py-2 rounded-lg border bg-green-50 border-green-300">
             <div className="flex items-start gap-2">
               <span className="text-base">✓</span>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-green-700">
-                  Historical Data Active
-                </div>
+                <div className="text-xs font-semibold text-green-700">Historical Data Active</div>
                 <div className="text-[10px] mt-0.5 text-green-600">
                   Akurat dari sensor history database
                 </div>
@@ -1331,26 +1396,30 @@ const HistoryTrackingMap = () => {
         )}
 
         {/* Deleted truck info: show when truck has deleted_at and affects selected date */}
-        {selectedVehicle && deletedAtByVehicle[String(selectedVehicle.id)] && (() => {
-          const del = new Date(deletedAtByVehicle[String(selectedVehicle.id)]);
-          const { start, end } = getDayWindow(selectedDate);
-          if (del <= start) {
-            return (
-              <div className="px-3 py-2 rounded-lg border bg-red-50 border-red-300 text-red-700 text-sm">
-                This vehicle was deleted on {del.toLocaleString()}. No history is available for the selected period.
-              </div>
-            );
-          }
-          if (del > start && del <= end) {
-            return (
-              <div className="px-3 py-2 rounded-lg border bg-yellow-50 border-yellow-300 text-yellow-800 text-sm">
-                This vehicle was deleted on {del.toLocaleString()}. Only history before that time is available for this date.
-              </div>
-            );
-          }
-          return null;
-        })}
-        
+        {selectedVehicle &&
+          deletedAtByVehicle[String(selectedVehicle.id)] &&
+          (() => {
+            const del = new Date(deletedAtByVehicle[String(selectedVehicle.id)]);
+            const { start, end } = getDayWindow(selectedDate);
+            if (del <= start) {
+              return (
+                <div className="px-3 py-2 rounded-lg border bg-red-50 border-red-300 text-red-700 text-sm">
+                  This vehicle was deleted on {del.toLocaleString()}. No history is available for
+                  the selected period.
+                </div>
+              );
+            }
+            if (del > start && del <= end) {
+              return (
+                <div className="px-3 py-2 rounded-lg border bg-yellow-50 border-yellow-300 text-yellow-800 text-sm">
+                  This vehicle was deleted on {del.toLocaleString()}. Only history before that time
+                  is available for this date.
+                </div>
+              );
+            }
+            return null;
+          })}
+
         {/* Date & Shift Section */}
         <div className="min-w-0">
           <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
@@ -1418,7 +1487,9 @@ const HistoryTrackingMap = () => {
 
         {/* Load by Truck ID (include soft-deleted trucks) */}
         <div className="min-w-0">
-          <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Load by Truck ID</h5>
+          <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+            Load by Truck ID
+          </h5>
           <div className="flex gap-2">
             <input
               type="text"
@@ -1435,7 +1506,9 @@ const HistoryTrackingMap = () => {
               Load
             </button>
           </div>
-          <div className="text-[11px] text-gray-500 mt-1">Tip: gunakan ID jika kendaraan sudah dihapus untuk melihat riwayat.</div>
+          <div className="text-[11px] text-gray-500 mt-1">
+            Tip: gunakan ID jika kendaraan sudah dihapus untuk melihat riwayat.
+          </div>
         </div>
 
         {/* Cluster Filter Section */}
@@ -1476,65 +1549,101 @@ const HistoryTrackingMap = () => {
         <div className="border-t border-gray-200"></div>
 
         {/* Current Point Alerts Section - Only show if alert exists at current point */}
-        {selectedVehicle && currentPlaybackTireData && (() => {
-          const alerts = [];
-          const MAX_ALERTS_DISPLAY = 3; // Limit displayed alerts
-          
-          currentPlaybackTireData.forEach(tire => {
-            const temp = tire.tempValue;
-            const pressure = tire.tirepValue; // Already in PSI
-            
-            // ✅ NEW THRESHOLDS (Dec 2025 Update) - Same as TirePressureDisplay
-            // Temperature: Normal <85°C, Warning ≥85°C, Critical ≥100°C
-            // Pressure: Normal 100-119 PSI, Critical Low <90 PSI, Critical High ≥120 PSI
-            
-            // Check temperature alerts
-            if (temp >= 100) {
-              alerts.push({ tire: tire.tireNo, type: 'critical', message: 'Temperature Critical', value: `${temp.toFixed(1)}°C`, priority: 3 });
-            } else if (temp >= 85) {
-              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Temperature Warning', value: `${temp.toFixed(1)}°C`, priority: 2 });
-            }
-            
-            // Check pressure alerts (pressure is already in PSI, no conversion needed)
-            const psi = pressure; // No conversion - backend already sends PSI
-            if (psi < 90) {
-              alerts.push({ tire: tire.tireNo, type: 'critical', message: 'Pressure Critical Low', value: `${psi.toFixed(1)} PSI`, priority: 3 });
-            } else if (psi < 100) {
-              alerts.push({ tire: tire.tireNo, type: 'warning', message: 'Pressure Low', value: `${psi.toFixed(1)} PSI`, priority: 2 });
-            } else if (psi >= 120) {
-              alerts.push({ tire: tire.tireNo, type: 'critical', message: 'Pressure Critical High', value: `${psi.toFixed(1)} PSI`, priority: 3 });
-            }
-          });
-          
-          return alerts.length > 0 ? (
-            <div className="min-w-0">
-              <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                🚨 Alerts di Titik Ini
-              </h5>
-              <div className="space-y-1.5">
-                {alerts.map((alert, idx) => (
-                  <div 
-                    key={idx}
-                    className={`px-2 py-1.5 rounded-md border text-xs ${
-                      alert.type === 'critical' 
-                        ? 'bg-red-50 border-red-300 text-red-700' 
-                        : 'bg-orange-50 border-orange-300 text-orange-700'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="font-semibold">Ban {alert.tire}: {alert.message}</div>
-                        <div className="text-[10px] mt-0.5 opacity-80">{alert.value}</div>
+        {selectedVehicle &&
+          currentPlaybackTireData &&
+          (() => {
+            const alerts = [];
+            const MAX_ALERTS_DISPLAY = 3; // Limit displayed alerts
+
+            currentPlaybackTireData.forEach((tire) => {
+              const temp = tire.tempValue;
+              const pressure = tire.tirepValue; // Already in PSI
+
+              // ✅ NEW THRESHOLDS (Dec 2025 Update) - Same as TirePressureDisplay
+              // Temperature: Normal <85°C, Warning ≥85°C, Critical ≥100°C
+              // Pressure: Normal 100-119 PSI, Critical Low <90 PSI, Critical High ≥120 PSI
+
+              // Check temperature alerts
+              if (temp >= 100) {
+                alerts.push({
+                  tire: tire.tireNo,
+                  type: 'critical',
+                  message: 'Temperature Critical',
+                  value: `${temp.toFixed(1)}°C`,
+                  priority: 3,
+                });
+              } else if (temp >= 85) {
+                alerts.push({
+                  tire: tire.tireNo,
+                  type: 'warning',
+                  message: 'Temperature Warning',
+                  value: `${temp.toFixed(1)}°C`,
+                  priority: 2,
+                });
+              }
+
+              // Check pressure alerts (pressure is already in PSI, no conversion needed)
+              const psi = pressure; // No conversion - backend already sends PSI
+              if (psi < 90) {
+                alerts.push({
+                  tire: tire.tireNo,
+                  type: 'critical',
+                  message: 'Pressure Critical Low',
+                  value: `${psi.toFixed(1)} PSI`,
+                  priority: 3,
+                });
+              } else if (psi < 100) {
+                alerts.push({
+                  tire: tire.tireNo,
+                  type: 'warning',
+                  message: 'Pressure Low',
+                  value: `${psi.toFixed(1)} PSI`,
+                  priority: 2,
+                });
+              } else if (psi >= 120) {
+                alerts.push({
+                  tire: tire.tireNo,
+                  type: 'critical',
+                  message: 'Pressure Critical High',
+                  value: `${psi.toFixed(1)} PSI`,
+                  priority: 3,
+                });
+              }
+            });
+
+            return alerts.length > 0 ? (
+              <div className="min-w-0">
+                <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                  🚨 Alerts di Titik Ini
+                </h5>
+                <div className="space-y-1.5">
+                  {alerts.map((alert, idx) => (
+                    <div
+                      key={idx}
+                      className={`px-2 py-1.5 rounded-md border text-xs ${
+                        alert.type === 'critical'
+                          ? 'bg-red-50 border-red-300 text-red-700'
+                          : 'bg-orange-50 border-orange-300 text-orange-700'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="font-semibold">
+                            Ban {alert.tire}: {alert.message}
+                          </div>
+                          <div className="text-[10px] mt-0.5 opacity-80">{alert.value}</div>
+                        </div>
+                        <span className="text-base shrink-0">
+                          {alert.type === 'critical' ? '🔴' : '⚠️'}
+                        </span>
                       </div>
-                      <span className="text-base shrink-0">{alert.type === 'critical' ? '🔴' : '⚠️'}</span>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <div className="border-t border-gray-200 mt-2"></div>
               </div>
-              <div className="border-t border-gray-200 mt-2"></div>
-            </div>
-          ) : null;
-        })()}
+            ) : null;
+          })()}
 
         <div className="border-t border-gray-200"></div>
 
@@ -1543,12 +1652,14 @@ const HistoryTrackingMap = () => {
           <h5 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center justify-between">
             <span>Tekanan Ban</span>
             {currentPlaybackTireData && (
-              <span className={`text-[10px] font-normal ${isUsingHistoricalData ? 'text-green-600' : 'text-orange-600'}`}>
+              <span
+                className={`text-[10px] font-normal ${isUsingHistoricalData ? 'text-green-600' : 'text-orange-600'}`}
+              >
                 {isUsingHistoricalData ? '✓ Historical' : '~ Simulated'}
               </span>
             )}
           </h5>
-          
+
           {/* Data Source Warning */}
           {currentPlaybackTireData && !isUsingHistoricalData && (
             <div className="mb-2 px-2 py-1 bg-orange-50 border border-orange-200 rounded text-[10px] text-orange-700">
@@ -1558,14 +1669,16 @@ const HistoryTrackingMap = () => {
               </div>
             </div>
           )}
-          
+
           {/* Timestamp Info */}
           {currentPlaybackTimestamp && (
-            <div className={`mb-2 px-2 py-1.5 rounded text-[10px] ${
-              isUsingHistoricalData 
-                ? 'bg-green-50 border border-green-200 text-green-700' 
-                : 'bg-blue-50 border border-blue-200 text-blue-700'
-            }`}>
+            <div
+              className={`mb-2 px-2 py-1.5 rounded text-[10px] ${
+                isUsingHistoricalData
+                  ? 'bg-green-50 border border-green-200 text-green-700'
+                  : 'bg-blue-50 border border-blue-200 text-blue-700'
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <span className="font-medium">📅 Recorded:</span>
                 <span className="font-mono">
@@ -1574,7 +1687,7 @@ const HistoryTrackingMap = () => {
                     day: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit',
-                    second: '2-digit'
+                    second: '2-digit',
                   })}
                 </span>
               </div>
@@ -1587,14 +1700,12 @@ const HistoryTrackingMap = () => {
               {currentPlaybackTireData && currentPlaybackTireData.length > 0 && (
                 <div className="flex items-center justify-between mt-0.5">
                   <span className="font-medium">🔧 Sensors:</span>
-                  <span className="font-mono">
-                    {currentPlaybackTireData.length} active
-                  </span>
+                  <span className="font-mono">{currentPlaybackTireData.length} active</span>
                 </div>
               )}
             </div>
           )}
-          
+
           <div className="w-full overflow-hidden">
             <TirePressureDisplay
               selectedTruckId={resolveTruckUUID(selectedVehicle?.id) || selectedVehicle?.id}
@@ -1834,7 +1945,7 @@ const HistoryTrackingMap = () => {
           >
             {isPlaybackPlaying ? '⏸ Pause' : '▶ Play'}
           </button>
-          
+
           {/* Desktop Controls - Hidden on mobile */}
           <div className="hidden min-[1369px]:flex items-center gap-3">
             {/* Step Back */}
@@ -1858,7 +1969,10 @@ const HistoryTrackingMap = () => {
                 type="range"
                 min={0}
                 max={(vehicleRoutes[selectedVehicle.id] || []).length - 1}
-                value={Math.min(playbackIndex, (vehicleRoutes[selectedVehicle.id] || []).length - 1)}
+                value={Math.min(
+                  playbackIndex,
+                  (vehicleRoutes[selectedVehicle.id] || []).length - 1
+                )}
                 onChange={(e) => setPlaybackIndex(Number(e.target.value))}
                 className="w-64"
               />
@@ -1911,11 +2025,12 @@ const HistoryTrackingMap = () => {
               Stop
             </button>
           </div>
-          
+
           {/* Mobile Progress Indicator - Only visible on mobile */}
           <div className="flex min-[1369px]:hidden items-center gap-2 text-xs text-gray-600">
             <span className="font-mono">
-              {Math.min(playbackIndex, (vehicleRoutes[selectedVehicle.id] || []).length - 1)} / {(vehicleRoutes[selectedVehicle.id] || []).length - 1}
+              {Math.min(playbackIndex, (vehicleRoutes[selectedVehicle.id] || []).length - 1)} /{' '}
+              {(vehicleRoutes[selectedVehicle.id] || []).length - 1}
             </span>
           </div>
         </>
