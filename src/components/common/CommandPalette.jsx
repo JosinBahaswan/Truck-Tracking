@@ -28,6 +28,27 @@ const CommandPalette = ({ open, setOpen }) => {
     }
   }, [open]);
 
+  // Define handlers before they are used
+  const onSelectVehicle = useCallback(
+    (v) => {
+      console.log('🚚 Selected vehicle:', v);
+      setOpen(false);
+      // Navigate to fleet management detail page
+      navigate(`/fleet-management/trucks/${v.id}`);
+    },
+    [navigate, setOpen]
+  );
+
+  const onSelectDevice = useCallback(
+    (d) => {
+      console.log('📱 Selected device:', d);
+      setOpen(false);
+      // Navigate to devices page with search query
+      navigate(`/fleet-management/devices?search=${encodeURIComponent(d.sn)}`);
+    },
+    [navigate, setOpen]
+  );
+
   // Handle ESC key to close
   useEffect(() => {
     const handleEscape = (e) => {
@@ -132,26 +153,6 @@ const CommandPalette = ({ open, setOpen }) => {
   useEffect(() => {
     debounced(query);
   }, [debounced, query]);
-
-  const onSelectVehicle = useCallback(
-    (v) => {
-      console.log('🚚 Selected vehicle:', v);
-      setOpen(false);
-      // Navigate to fleet management detail page
-      navigate(`/fleet-management/trucks/${v.id}`);
-    },
-    [navigate, setOpen]
-  );
-
-  const onSelectDevice = useCallback(
-    (d) => {
-      console.log('📱 Selected device:', d);
-      setOpen(false);
-      // Navigate to devices page with search query
-      navigate(`/fleet-management/devices?search=${encodeURIComponent(d.sn)}`);
-    },
-    [navigate, setOpen]
-  );
 
   return (
     <Transition.Root show={open} as={Fragment}>
