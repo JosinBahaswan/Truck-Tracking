@@ -702,7 +702,8 @@ export default function VendorsList() {
 
               {/* Actions */}
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="outline"
                   onClick={() => {
                     if (filtered.length === 0) {
                       setAlert({
@@ -736,7 +737,7 @@ export default function VendorsList() {
                     link.download = `vendors_${new Date().toISOString().split('T')[0]}.csv`;
                     link.click();
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                  className="gap-2"
                   title="Export to CSV"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -748,15 +749,16 @@ export default function VendorsList() {
                     />
                   </svg>
                   Export
-                </button>
+                </Button>
 
                 {query && (
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={() => {
                       setQuery('');
                       setPage(1);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                    className="gap-2"
                     title="Clear search"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -768,7 +770,7 @@ export default function VendorsList() {
                       />
                     </svg>
                     Clear
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

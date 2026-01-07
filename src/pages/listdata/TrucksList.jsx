@@ -335,11 +335,19 @@ const TrucksFormList = () => {
     let result = activeTrucks.filter((t) => {
       const matchesQ =
         !q ||
-        t.id.toLowerCase().includes(q) ||
-        t.plate.toLowerCase().includes(q) ||
-        t.name.toLowerCase().includes(q) ||
-        t.vin.toLowerCase().includes(q) ||
-        t.driver.name.toLowerCase().includes(q);
+        String(t.id || '').toLowerCase().includes(q) ||
+        String(t.plate || '').toLowerCase().includes(q) ||
+        String(t.name || '').toLowerCase().includes(q) ||
+        String(t.vin || '').toLowerCase().includes(q) ||
+        String(t.cluster || '').toLowerCase().includes(q) ||
+        String(t.brand || '').toLowerCase().includes(q) ||
+        String(t.model || '').toLowerCase().includes(q) ||
+        String(t.year || '').toLowerCase().includes(q) ||
+        String(t.status || '').toLowerCase().includes(q) ||
+        String(t.vendor?.name || '').toLowerCase().includes(q) ||
+        String(t.driver?.name || '').toLowerCase().includes(q) ||
+        String(t.driver?.phone || t.driver?.telephone || '').toLowerCase().includes(q) ||
+        String(t.address || '').toLowerCase().includes(q);
       const matchesCluster = !cluster || t.cluster === cluster;
       const matchesVendor = !vendorFilter || t.vendor_id === vendorFilter;
       const matchesStatus = !statusFilter || t.status === statusFilter;
@@ -647,13 +655,40 @@ const TrucksFormList = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             {/* Table Header with Filters and Column Toggle */}
             <div className="p-4 border-b border-gray-200">
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                <div className="flex gap-4 flex-1 w-full flex-wrap">
-                  {/* Search */}
-                  <div className="relative flex-1 min-w-[200px]">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <div className="flex gap-4 flex-wrap items-center">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg
+                      className="w-4 h-4 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Name, plate, VIN, model, type, cluster, vendor, driver..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Cluster Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="justify-between min-w-[150px]">
+                      {cluster || 'All Clusters'}
                       <svg
-                        className="w-4 h-4 text-gray-400"
+                        className="ml-2 w-4 h-4"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -662,225 +697,196 @@ const TrucksFormList = () => {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                          d="M19 9l-7 7-7-7"
                         />
                       </svg>
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Search vehicles..."
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-
-                  {/* Cluster Filter */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="justify-between min-w-[150px]">
-                        {cluster || 'All Clusters'}
-                        <svg
-                          className="ml-2 w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-[150px]">
-                      <DropdownMenuItem onClick={() => setCluster('')}>
-                        All Clusters
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[150px]">
+                    <DropdownMenuItem onClick={() => setCluster('')}>
+                      All Clusters
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {clusters.map((c) => (
+                      <DropdownMenuItem key={c} onClick={() => setCluster(c)}>
+                        {c}
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {clusters.map((c) => (
-                        <DropdownMenuItem key={c} onClick={() => setCluster(c)}>
-                          {c}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                  {/* Vendor Filter */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="justify-between min-w-[150px]">
-                        {vendorFilter
-                          ? vendors.find((v) => v.id === vendorFilter)?.name || 'All Vendors'
-                          : 'All Vendors'}
-                        <svg
-                          className="ml-2 w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-[150px]">
-                      <DropdownMenuItem onClick={() => setVendorFilter('')}>
-                        All Vendors
+                {/* Vendor Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="justify-between min-w-[150px]">
+                      {vendorFilter
+                        ? vendors.find((v) => v.id === vendorFilter)?.name || 'All Vendors'
+                        : 'All Vendors'}
+                      <svg
+                        className="ml-2 w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[150px]">
+                    <DropdownMenuItem onClick={() => setVendorFilter('')}>
+                      All Vendors
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {vendors.map((v) => (
+                      <DropdownMenuItem key={v.id} onClick={() => setVendorFilter(v.id)}>
+                        {v.name}
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {vendors.map((v) => (
-                        <DropdownMenuItem key={v.id} onClick={() => setVendorFilter(v.id)}>
-                          {v.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                  {/* Status Filter */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="justify-between min-w-[130px]">
-                        {statusFilter
-                          ? statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)
-                          : 'All Status'}
-                        <svg
-                          className="ml-2 w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-[130px]">
-                      <DropdownMenuItem onClick={() => setStatusFilter('')}>
-                        All Status
+                {/* Status Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="justify-between min-w-[130px]">
+                      {statusFilter
+                        ? statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)
+                        : 'All Status'}
+                      <svg
+                        className="ml-2 w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[130px]">
+                    <DropdownMenuItem onClick={() => setStatusFilter('')}>
+                      All Status
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {statusOptions.map((s) => (
+                      <DropdownMenuItem key={s} onClick={() => setStatusFilter(s)}>
+                        {s.charAt(0).toUpperCase() + s.slice(1)}
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {statusOptions.map((s) => (
-                        <DropdownMenuItem key={s} onClick={() => setStatusFilter(s)}>
-                          {s.charAt(0).toUpperCase() + s.slice(1)}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                  {/* Per Page Selector */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="justify-between min-w-[120px]">
-                        {pageSize} / page
-                        <svg
-                          className="ml-2 w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-[120px]">
-                      {[10, 25, 50, 100].map((size) => (
-                        <DropdownMenuItem
-                          key={size}
-                          onClick={() => {
-                            setPageSize(size);
-                            setPage(1);
-                          }}
-                        >
-                          {size} / page
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                {/* Per Page Selector */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="justify-between min-w-[120px]">
+                      {pageSize} / page
+                      <svg
+                        className="ml-2 w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[120px]">
+                    {[10, 25, 50, 100].map((size) => (
+                      <DropdownMenuItem
+                        key={size}
+                        onClick={() => {
+                          setPageSize(size);
+                          setPage(1);
+                        }}
+                      >
+                        {size} / page
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                  {/* Column Toggle Dropdown */}
-                  <div className="relative">
-                    <details className="group">
-                      <summary className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-300 rounded-lg cursor-pointer text-sm font-medium text-gray-700 transition-colors">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                          />
-                        </svg>
-                        Columns
-                        <svg
-                          //Pakai ini jika ingin ada animasi rotasi
-                          // className="w-4 h-4 group-open:rotate-180 transition-transform"
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </summary>
-                      <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-20 max-h-96 overflow-y-auto">
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold text-gray-700 mb-2">Toggle Columns</p>
-                          {[
-                            { key: 'id', label: 'ID' },
-                            { key: 'createdAt', label: 'Created At' },
-                            { key: 'updatedAt', label: 'Updated At' },
-                            { key: 'deletedAt', label: 'Deleted At' },
-                            { key: 'createdBy', label: 'Created By' },
-                            { key: 'updatedBy', label: 'Updated By' },
-                          ].map((col) => (
-                            <label
-                              key={col.key}
-                              className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={visibleColumns[col.key]}
-                                onChange={() => toggleColumn(col.key)}
-                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                              />
-                              <span className="text-sm text-gray-700">{col.label}</span>
-                            </label>
-                          ))}
-                        </div>
+                {/* Column Toggle Dropdown */}
+                <div className="relative">
+                  <details className="group">
+                    <summary className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-300 rounded-lg cursor-pointer text-sm font-medium text-gray-700 transition-colors">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                        />
+                      </svg>
+                      Columns
+                      <svg
+                        //Pakai ini jika ingin ada animasi rotasi
+                        // className="w-4 h-4 group-open:rotate-180 transition-transform"
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </summary>
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-20 max-h-96 overflow-y-auto">
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-gray-700 mb-2">Toggle Columns</p>
+                        {[
+                          { key: 'id', label: 'ID' },
+                          { key: 'createdAt', label: 'Created At' },
+                          { key: 'updatedAt', label: 'Updated At' },
+                          { key: 'deletedAt', label: 'Deleted At' },
+                          { key: 'createdBy', label: 'Created By' },
+                          { key: 'updatedBy', label: 'Updated By' },
+                        ].map((col) => (
+                          <label
+                            key={col.key}
+                            className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={visibleColumns[col.key]}
+                              onChange={() => toggleColumn(col.key)}
+                              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                            />
+                            <span className="text-sm text-gray-700">{col.label}</span>
+                          </label>
+                        ))}
                       </div>
-                    </details>
-                  </div>
+                    </div>
+                  </details>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
+                {/* Export Button */}
+                <Button
+                  variant="outline"
+                  onClick={() => {
                       if (filtered.length === 0) {
                         setAlert({
                           isOpen: true,
@@ -933,7 +939,7 @@ const TrucksFormList = () => {
                       link.download = `vehicles_${new Date().toISOString().split('T')[0]}.csv`;
                       link.click();
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                    className="gap-2"
                     title="Export to CSV"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -945,8 +951,7 @@ const TrucksFormList = () => {
                       />
                     </svg>
                     Export
-                  </button>
-                </div>
+                  </Button>
               </div>
 
               {/* Active Filters Display */}

@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useRef, useState, useCallback } from 'react'; // Import React hooks untuk state management
+import { useNavigate } from 'react-router-dom'; // Import useNavigate untuk routing
 import { TruckIcon, ClockIcon, FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline'; // Import ikon-ikon UI
 import BaseTrackingMap from './BaseTrackingMap'; // Import komponen peta dasar
 import TirePressureDisplay from '../../components/dashboard/TirePressureDisplay'; // Import komponen display tekanan ban
@@ -10,6 +11,7 @@ import { trackingAPI } from 'services/tracking'; // BE1 Tracking API
 const WS_URL = import.meta.env.VITE_TRACKING_WS_URL;
 
 const LiveTrackingMapNew = () => {
+  const navigate = useNavigate(); // Hook untuk navigasi
   const [map, setMap] = useState(null); // State untuk menyimpan instance peta Leaflet
   const [mapUtils, setMapUtils] = useState(null); // State untuk utility functions peta
   const [vehicles, setVehicles] = useState([]); // State untuk daftar semua kendaraan
@@ -18,6 +20,7 @@ const LiveTrackingMapNew = () => {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false); // Toggle visibility dropdown filter
   const [loading, setLoading] = useState(true); // State loading saat fetch data
   const [setError] = useState(null); // State untuk menyimpan error (jika ada)
+
   const [clusterSelections, setClusterSelections] = useState(
     // State untuk filter cluster berdasarkan range nomor truk
     new Set(['1-199', '200-399', '400-599', '600-799', '800-999']) // Default: semua cluster aktif
@@ -325,6 +328,7 @@ const LiveTrackingMapNew = () => {
   }, [checkShiftDateChange]); // Add dependency for checkShiftDateChange
 
   // Setup WebSocket connection for real-time updates
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const connectWebSocket = useCallback(() => {
     // Clear any pending reconnection timeout
     if (wsReconnectTimeout.current) {
@@ -431,7 +435,7 @@ const LiveTrackingMapNew = () => {
       console.error('❌ Failed to create WebSocket connection:', error);
       setWsStatus('error');
     }
-  }, );
+  },);
 
   // Handle real-time truck location update from WebSocket
   const handleTruckLocationUpdate = useCallback((data) => {
@@ -1138,6 +1142,7 @@ const LiveTrackingMapNew = () => {
         }
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, vehicles, clusterSelections, inSelectedCluster, vehicleRoutes, timeRange, selectedVehicle]); // Re-run jika dependencies berubah
 
   // Re-apply marker zoom styling whenever map or selection changes
@@ -1544,12 +1549,12 @@ const LiveTrackingMapNew = () => {
               <div className="mt-5">
                 {' '}
                 {/* Container tombol CTA */}
-                <a
-                  href={`/history?focus=${encodeURIComponent(String(selectedVehicle?.id || ''))}`} // Link ke halaman history dengan parameter focus
-                  className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2.5 px-3 rounded-lg hover:bg-blue-700 transition-colors"
+                <button
+                  onClick={() => navigate(`/history-tracking?focus=${encodeURIComponent(String(selectedVehicle?.id || ''))}`)} // Navigasi ke halaman history dengan parameter focus
+                  className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2.5 px-3 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
                 >
                   <span>View Route History</span> {/* Label tombol */}
-                </a>
+                </button>
               </div>
             </div>
           )}

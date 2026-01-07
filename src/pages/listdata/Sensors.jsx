@@ -374,10 +374,22 @@ const Sensors = () => {
 
       const matchQuery =
         !query ||
+        // Search by ID
+        String(sensor.id || '').toLowerCase().includes(query.toLowerCase()) ||
+        // Search by sensor serial number
         (sensor.sn || '').toLowerCase().includes(query.toLowerCase()) ||
+        // Search by sensor number
+        (sensor.sensor_no || '').toLowerCase().includes(query.toLowerCase()) ||
+        // Search by sim number
         (sensor.sim_number || '').toLowerCase().includes(query.toLowerCase()) ||
+        // Search by device serial number
         (device?.sn || device?.serial_number || '').toLowerCase().includes(query.toLowerCase()) ||
-        (truck?.name || '').toLowerCase().includes(query.toLowerCase());
+        // Search by truck name
+        (truck?.name || '').toLowerCase().includes(query.toLowerCase()) ||
+        // Search by tire position
+        String(sensor.tire_no || '').toLowerCase().includes(query.toLowerCase()) ||
+        // Search by status
+        (sensor.status || '').toLowerCase().includes(query.toLowerCase());
 
       const matchDevice = !deviceFilter || device?.id?.toString() === deviceFilter;
       const matchTruck = !sensorFilter || truck?.id?.toString() === sensorFilter;
@@ -686,7 +698,7 @@ const Sensors = () => {
                   </div>
                   <input
                     type="text"
-                    placeholder="Search sensors..."
+                    placeholder="Serial number, device, truck, tire position, status..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -849,8 +861,9 @@ const Sensors = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="relative">
-                  <button
+                <div className="relative flex gap-2">
+                  <Button
+                    variant="outline"
                     onClick={() => {
                       if (filtered.length === 0) {
                         setAlert({
@@ -888,7 +901,7 @@ const Sensors = () => {
                       link.download = `sensors_${new Date().toISOString().split('T')[0]}.csv`;
                       link.click();
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                    className="gap-2"
                     title="Export to CSV"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -900,15 +913,16 @@ const Sensors = () => {
                       />
                     </svg>
                     Export
-                  </button>
+                  </Button>
 
                   {query && (
-                    <button
+                    <Button
+                      variant="outline"
                       onClick={() => {
                         setQuery('');
                         setPage(1);
                       }}
-                      className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                      className="gap-2"
                       title="Clear search"
                     >
                       <svg
@@ -925,7 +939,7 @@ const Sensors = () => {
                         />
                       </svg>
                       Clear
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

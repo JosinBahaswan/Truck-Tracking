@@ -199,11 +199,14 @@ export default function DriversList() {
       const licenseType = v.license_type || '';
       const matchQuery =
         !q ||
+        String(v.id || '').toLowerCase().includes(q) ||
         (v.name || '').toLowerCase().includes(q) ||
         licenseNum.toLowerCase().includes(q) ||
+        licenseType.toLowerCase().includes(q) ||
         (v.telephone || v.phone || '').toLowerCase().includes(q) ||
         (v.email || '').toLowerCase().includes(q) ||
-        licenseType.toLowerCase().includes(q);
+        (v.address || '').toLowerCase().includes(q) ||
+        (v.status || '').toLowerCase().includes(q);
 
       const matchStatus = !statusFilter || v.status === statusFilter;
 
@@ -634,7 +637,8 @@ export default function DriversList() {
 
               {/* Actions */}
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="outline"
                   onClick={() => {
                     if (filtered.length === 0) {
                       setAlert({
@@ -680,7 +684,7 @@ export default function DriversList() {
                     link.download = `drivers_${new Date().toISOString().split('T')[0]}.csv`;
                     link.click();
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                  className="gap-2"
                   title="Export to CSV"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -692,16 +696,17 @@ export default function DriversList() {
                     />
                   </svg>
                   Export
-                </button>
+                </Button>
 
                 {(query || statusFilter) && (
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={() => {
                       setQuery('');
                       setStatusFilter('');
                       setPage(1);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                    className="gap-2"
                     title="Clear all filters"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -713,7 +718,7 @@ export default function DriversList() {
                       />
                     </svg>
                     Clear
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
